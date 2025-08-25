@@ -1,0 +1,61 @@
+{
+  "name": "gsap-react-marquee",
+  "author": "David Domenico Piscopo",
+  "description": "A high-performance React marquee component powered by GSAP",
+  "license": "MIT",
+  "version": "0.1.0",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "react",
+    "marquee",
+    "gsap",
+    "animation",
+    "scroll",
+    "infinite",
+    "component",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daviddpi/gsap-react-marquee"
+  },
+  "bugs": {
+    "url": "https://github.com/daviddpi/gsap-react-marquee/issues"
+  },
+  "homepage": "https://github.com/daviddpi/gsap-react-marquee#readme",
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.0",
+    "gsap": "^3.12.0"
+  },
+  "dependencies": {
+    "@gsap/react": "^2.1.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.3.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "rollup": "^4.18.0",
+    "rollup-plugin-dts": "^6.1.1",
+    "rollup-plugin-postcss": "^4.0.2",
+    "typescript": "^5.5.2"
+  }
+}

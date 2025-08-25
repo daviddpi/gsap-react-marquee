@@ -1,0 +1,16 @@
+.gsap-react-marquee {
+  width: auto;
+  height: max-content;
+  line-height: 100%;
+  white-space: preserve nowrap;
+  display: flex;
+  flex: 1;
+}
+
+.gsap-react-marquee-content {
+  width: max-content;
+  line-height: 100%;
+  white-space: preserve nowrap;
+  display: flex;
+  overflow: hidden;
+}
