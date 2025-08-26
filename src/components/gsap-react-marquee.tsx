@@ -107,11 +107,12 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           startX,
           tl,
           isReverse,
-          isVertical,
           props
         );
       },
-      { dependencies: [marqueeDuplicates] }
+      {
+        dependencies: [marqueeDuplicates],
+      }
     );
 
     const clonedMarquees = useMemo(() => {

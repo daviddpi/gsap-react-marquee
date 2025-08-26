@@ -32,6 +32,10 @@ export const setupContainerStyles = (
     gsap.set(containerMarquee, {
       width: parent.offsetHeight,
     });
+
+    gsap.set(marqueesChildren, {
+      overflow: "visible",
+    });
   }
 
   if (alignRotationWithY && marquees.length > 0) {
@@ -43,11 +47,16 @@ export const setupContainerStyles = (
 
     gsap.set(marqueesChildren, {
       rotate: -90,
+      x: (containerMarquee.offsetWidth - spacing) / 2 - spacing,
       display: "flex",
       flexWrap: "wrap",
       width: marqueeHeight,
       wordBreak: "break-all",
       whiteSpace: "break-spaces",
+    });
+
+    gsap.set(marquees, {
+      height: containerMarquee.offsetWidth - spacing,
     });
   }
 };
@@ -97,10 +106,15 @@ export const coreAnimation = (
   startX: number,
   tl: gsap.core.Timeline,
   isReverse: boolean,
-  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): void => {
-  const { spacing = 16, speed = 100, delay = 0, paused = false } = props;
+  const {
+    spacing = 16,
+    speed = 100,
+    delay = 0,
+    paused = false,
+    alignRotationWithY = false,
+  } = props;
 
   const widths: number[] = [];
   const xPercents: number[] = [];
@@ -121,7 +135,7 @@ export const coreAnimation = (
 
   gsap.set(elementsToAnimate, { x: 0 });
 
-  // Calculate the total track length for seamless looping
+  //Calculate the total track length for seamless looping
   const trackLength =
     elementsToAnimate[latestPos].offsetLeft +
     (xPercents[latestPos] / 100) * widths[latestPos] -
@@ -133,7 +147,9 @@ export const coreAnimation = (
   elementsToAnimate.forEach((item, i) => {
     const curX = (xPercents[i] / 100) * widths[i];
     const distanceToStart = item.offsetLeft + curX - startX;
-    const distanceToLoop = distanceToStart + widths[i];
+    const distanceToLoop = alignRotationWithY
+      ? distanceToStart + item.offsetHeight - spacing
+      : distanceToStart + widths[i];
 
     tl.to(
       item,
@@ -159,7 +175,10 @@ export const coreAnimation = (
   tl.delay(delay);
 
   if (isReverse) {
-    if (paused) tl.pause();
+    if (paused) {
+      tl.pause();
+      return;
+    }
 
     tl.progress(1).pause();
 
