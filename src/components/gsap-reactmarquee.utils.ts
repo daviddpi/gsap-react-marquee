@@ -28,7 +28,10 @@ export const setupContainerStyles = (
   });
 
   if (isVertical) {
-    gsap.set(containerMarquee, { width: window.innerHeight });
+    const parent = containerMarquee.parentNode as HTMLElement;
+    gsap.set(containerMarquee, {
+      width: parent.offsetHeight,
+    });
   }
 
   if (alignRotationWithY && marquees.length > 0) {
@@ -87,53 +90,24 @@ export const getMinWidth = (
 };
 
 /**
- * Creates a simple infinite marquee animation
- */
-export const simpleAnimation = (
-  marquees: HTMLElement[],
-  marqueeChildrenDimension: number,
-  isReverse: boolean,
-  props: GSAPReactMarqueeProps
-): void => {
-  const { spacing = 16, speed = 100, loop = -1 } = props;
-
-  const tween = gsap.to(marquees, {
-    xPercent: (_, el) => {
-      const w = parseFloat(String(gsap.getProperty(el, "width", "px")));
-      const xPercent = ((w + spacing) / w) * 100;
-      return -xPercent;
-    },
-    duration: (marqueeChildrenDimension - spacing) / speed,
-    repeat: loop,
-    ease: "none",
-  });
-
-  tween.play();
-
-  if (isReverse) {
-    tween.totalTime(tween.rawTime() + tween.duration() * 100);
-    tween.reverse();
-  }
-};
-
-/**
  * Creates a complex fill-based marquee animation with seamless looping
  */
-export const fillAnimation = (
-  marqueesChildren: HTMLElement[],
+export const coreAnimation = (
+  elementsToAnimate: HTMLElement[],
   startX: number,
   tl: gsap.core.Timeline,
   isReverse: boolean,
+  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): void => {
-  const { spacing = 16, speed = 100 } = props;
+  const { spacing = 16, speed = 100, delay = 0, paused = false } = props;
 
   const widths: number[] = [];
   const xPercents: number[] = [];
-  const latestPos = marqueesChildren.length - 1;
+  const latestPos = elementsToAnimate.length - 1;
 
   // Set initial positions and calculate percentages
-  gsap.set(marqueesChildren, {
+  gsap.set(elementsToAnimate, {
     xPercent: (i, el) => {
       const w = (widths[i] = parseFloat(
         String(gsap.getProperty(el, "width", "px"))
@@ -145,18 +119,18 @@ export const fillAnimation = (
     },
   });
 
-  gsap.set(marqueesChildren, { x: 0 });
+  gsap.set(elementsToAnimate, { x: 0 });
 
   // Calculate the total track length for seamless looping
   const trackLength =
-    marqueesChildren[latestPos].offsetLeft +
+    elementsToAnimate[latestPos].offsetLeft +
     (xPercents[latestPos] / 100) * widths[latestPos] -
     startX +
-    marqueesChildren[latestPos].offsetWidth +
+    elementsToAnimate[latestPos].offsetWidth +
     spacing;
 
   // Create animation timeline for each element
-  marqueesChildren.forEach((item, i) => {
+  elementsToAnimate.forEach((item, i) => {
     const curX = (xPercents[i] / 100) * widths[i];
     const distanceToStart = item.offsetLeft + curX - startX;
     const distanceToLoop = distanceToStart + widths[i];
@@ -182,11 +156,19 @@ export const fillAnimation = (
     );
   });
 
-  // Pre-render for performance optimization
-  tl.progress(1, true).progress(0, true);
+  tl.delay(delay);
 
   if (isReverse) {
-    tl.totalTime(tl.rawTime() + tl.duration() * 100);
-    tl.reverse();
+    if (paused) tl.pause();
+
+    tl.progress(1).pause();
+
+    gsap.delayedCall(delay, () => {
+      tl.reverse();
+
+      tl.eventCallback("onReverseComplete", () => {
+        tl.totalTime(tl.rawTime() + tl.duration() * 100);
+      });
+    });
   }
 };

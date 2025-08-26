@@ -8,10 +8,9 @@ import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 import {
   calculateDuplicates,
   cn,
-  fillAnimation,
+  coreAnimation,
   getMinWidth,
   setupContainerStyles,
-  simpleAnimation,
 } from "./gsap-reactmarquee.utils";
 
 const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
@@ -23,7 +22,6 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       loop = -1,
       paused = false,
       fill = false,
-      alignRotationWithY,
     } = props;
 
     const rootRef = useRef<HTMLDivElement>(null) || ref;
@@ -54,8 +52,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         if (!marquee || !marqueesChildren) return;
 
         const tl = gsap.timeline({
-          repeat: loop,
           paused: paused,
+          repeat: loop,
           defaults: { ease: "none" },
           onReverseComplete() {
             // start the animation from the end, when scrolling in reverse (up)
@@ -74,7 +72,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
         // Calculate dimensions and duplicates
         const containerMarqueeWidth = containerMarquee.offsetWidth;
-        const marqueeHeight = marquees[0].offsetHeight;
+        //   const marqueeHeight = marquees[0].offsetHeight;
         const marqueeChildrenWidth = marqueesChildren[0].offsetWidth;
         const startX = marqueesChildren[0].offsetLeft;
 
@@ -104,18 +102,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         });
 
         // Create appropriate animation based on fill setting
-        if (fill) {
-          fillAnimation(marqueesChildren, startX, tl, isReverse, props);
-        } else {
-          simpleAnimation(
-            marquees,
-            isVertical && alignRotationWithY
-              ? marqueeHeight
-              : marqueeChildrenWidth,
-            isReverse,
-            props
-          );
-        }
+        coreAnimation(
+          fill ? marqueesChildren : marquees,
+          startX,
+          tl,
+          isReverse,
+          isVertical,
+          props
+        );
       },
       { dependencies: [marqueeDuplicates] }
     );
