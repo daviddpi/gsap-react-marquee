@@ -151,11 +151,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
              *
              * Phase 1: Quick acceleration to new speed (0.2s)
              * - timeScale: Controls timeline playback speed (higher = faster)
-             * - factor * 2.5: Initial speed boost for responsive feel
+             * - factor * clampedScrollSpeed: Initial speed boost for responsive feel
              * - overwrite: Cancels any previous speed animations
              *
              * Phase 2: Gradual deceleration to sustained speed (1s delay + 1s duration)
-             * - factor / 2.5: Settle to a more moderate sustained speed
+             * - factor / clampedScrollSpeed: Settle to a more moderate sustained speed
              * - "+=0.3": Wait 0.3 seconds before starting deceleration
              */
             gsap
@@ -165,11 +165,15 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
                 },
               })
               .to(tl, {
-                timeScale: factor * 2.5,
+                timeScale: factor * clampedScrollSpeed,
                 duration: 0.2,
                 overwrite: true,
               })
-              .to(tl, { timeScale: factor / 2.5, duration: 1 }, "+=0.3");
+              .to(
+                tl,
+                { timeScale: factor / clampedScrollSpeed, duration: 1 },
+                "+=0.3"
+              );
           },
         });
       },

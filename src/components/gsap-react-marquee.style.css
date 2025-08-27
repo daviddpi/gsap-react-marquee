@@ -11,7 +11,9 @@
     var(--gradient-color) 75%
   );
   z-index: 10;
+  pointer-events: none;
 }
+
 .gsap-react-marquee-container::before {
   content: "";
   position: absolute;
@@ -25,6 +27,7 @@
     var(--gradient-color) 75%
   );
   z-index: 10;
+  pointer-events: none;
 }
 
 .gsap-react-marquee {

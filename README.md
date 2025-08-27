@@ -45,4 +45,4 @@ function App() {
 | `spacing`            | `number`                              | `16`      | Spacing between repeated elements in px                                                 |
 | `draggable`          | `boolean`                             | `false`   | Enable dragging to scroll manually                                                      |
 | `followScrollDir`    | `boolean`                             | `false`   | Sync marquee with page scroll direction                                                 |
-| `scrollSpeed`        | `number`                              | –         | Speed factor when syncing with page scroll                                              |
+| `scrollSpeed`        | `number`                              | `2.5`     | Speed factor when syncing with page scroll                                              |

@@ -3,7 +3,7 @@
   "author": "David Domenico Piscopo",
   "description": "A high-performance React marquee component powered by GSAP",
   "license": "MIT",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
