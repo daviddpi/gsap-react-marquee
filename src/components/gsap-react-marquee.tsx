@@ -1,7 +1,7 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Observer } from "gsap/all";
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./gsap-react-marquee.style.css";
 
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
@@ -9,6 +9,7 @@ import {
   calculateDuplicates,
   cn,
   coreAnimation,
+  getEffectiveBackgroundColor,
   getMinWidth,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
@@ -24,12 +25,24 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       fill = false,
       followScrollDir = false,
       scrollSpeed = 2.5,
+      gradient = false,
+      gradientColor = null,
     } = props;
 
     const rootRef = useRef<HTMLDivElement>(null) || ref;
     const containerRef = rootRef;
     const marqueeRef = useRef<HTMLDivElement>(null);
     const [marqueeDuplicates, setMarqueeDuplicates] = useState(1);
+    const [effectivelyGradient, setEffectivelyGradient] = useState<
+      string | null
+    >(null);
+
+    useLayoutEffect(() => {
+      if (!gradient || !containerRef?.current) return;
+
+      const effectiveBg = getEffectiveBackgroundColor(containerRef.current);
+      setEffectivelyGradient(effectiveBg);
+    }, [gradient]);
 
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
@@ -165,6 +178,19 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       }
     );
 
+    const getGradientColor = (): string => {
+      // Priority order: explicit gradientColor > auto-detected > fallback
+      if (gradientColor) {
+        return gradientColor; // User-specified color takes precedence
+      }
+
+      if (gradient && effectivelyGradient) {
+        return effectivelyGradient; // Auto-detected background color
+      }
+
+      return "transparent"; // Default fallback
+    };
+
     /**
      * Generate cloned marquee elements for seamless looping
      *
@@ -188,6 +214,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     return (
       <div
         ref={containerRef}
+        style={
+          {
+            "--gradient-color": getGradientColor(),
+          } as React.CSSProperties
+        }
         className={cn(
           "gsap-react-marquee-container flex w-full overflow-hidden whitespace-nowrap"
         )}

@@ -18,6 +18,48 @@ export const cn = (...inputs: ClassValue[]) => {
 };
 
 /**
+ * Traverses the DOM tree upward to find the first non-transparent background color
+ *
+ * This function walks up the element hierarchy starting from the given element,
+ * checking each parent's computed backgroundColor style until it finds a visible
+ * (non-transparent) background color. This is useful for automatically detecting
+ * the effective background behind an element for gradient overlays.
+ *
+ * The traversal stops at the first element with a visible background color,
+ * which could be the element itself or any of its ancestors up to the document root.
+ *
+ * @param el - The HTMLElement to start the background color search from
+ * @returns The first non-transparent background color found in the hierarchy,
+ *          or "transparent" if no visible background is found
+ *
+ * @example
+ * // Element with white parent background
+ * const color = getEffectiveBackgroundColor(marqueeElement);
+ * // Returns: "rgb(255, 255, 255)" or "#ffffff"
+ *
+ * @example
+ * // Element with no background set anywhere in hierarchy
+ * const color = getEffectiveBackgroundColor(marqueeElement);
+ * // Returns: "transparent"
+ */
+export const getEffectiveBackgroundColor = (el: HTMLElement): string => {
+  let current: HTMLElement | null = el;
+
+  while (current) {
+    const bg = window.getComputedStyle(current).backgroundColor;
+
+    // Check if background color is visible (not transparent or rgba(0,0,0,0))
+    if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+      return bg;
+    }
+
+    current = current.parentElement;
+  }
+
+  return "transparent"; // fallback when no visible background is found
+};
+
+/**
  * Sets up container styles and rotation handling for the marquee
  *
  * This function handles the complex styling requirements for different marquee orientations:
