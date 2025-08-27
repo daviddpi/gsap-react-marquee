@@ -15,35 +15,43 @@ export default [
       {
         file: packageJson.main,
         format: "cjs",
-        sourcemap: true,
+        sourcemap: false,
         exports: "named",
       },
       {
         file: packageJson.module,
         format: "esm",
-        sourcemap: true,
+        sourcemap: false,
       },
     ],
     plugins: [
       resolve({
         preferBuiltins: false,
+        browser: true,
       }),
       commonjs(),
       typescript({
         tsconfig: "./tsconfig.json",
         declaration: false,
         declarationMap: false,
+        removeComments: true,
       }),
       postcss({
         extract: true,
         minimize: true,
         inject: false,
+        sourceMap: false,
       }),
       terser({
         compress: {
           drop_console: true,
           drop_debugger: true,
-          pure_funcs: ["console.log", "console.warn"],
+          pure_funcs: ["console.log", "console.warn", "console.error"],
+          passes: 2,
+        },
+        mangle: true,
+        format: {
+          comments: false,
         },
       }),
     ],
@@ -51,6 +59,7 @@ export default [
       "react",
       "react-dom",
       "gsap",
+      "gsap/all",
       "@gsap/react",
       "clsx",
       "tailwind-merge",
@@ -70,6 +79,7 @@ export default [
       /\.css$/,
       "react",
       "gsap",
+      "gsap/all",
       "@gsap/react",
       "clsx",
       "tailwind-merge",
