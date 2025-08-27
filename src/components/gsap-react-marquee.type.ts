@@ -100,8 +100,9 @@ export type GSAPReactMarqueeProps = {
   followScrollDir?: boolean;
 
   /**
-   * @description Speed factor when syncing with page scroll
+   * @description Speed factor when syncing with page scroll, max value is 4
    * @type {number}
+   * @default 2.5
    */
   scrollSpeed?: number;
 };
