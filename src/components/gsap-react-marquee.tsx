@@ -1,7 +1,14 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Draggable, InertiaPlugin, Observer } from "gsap/all";
-import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import "./gsap-react-marquee.style.css";
 
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
@@ -29,10 +36,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       scrollSpeed = 2.5,
       gradient = false,
       gradientColor = null,
+      pauseOnHover = false,
     } = props;
 
-    const rootRef = useRef<HTMLDivElement>(null) || ref;
-    const containerRef = rootRef;
+    const rootRef = useRef<HTMLDivElement>(null);
+    const containerRef = (ref as RefObject<HTMLDivElement>) || rootRef;
     const marqueeRef = useRef<HTMLDivElement>(null);
     const [marqueeDuplicates, setMarqueeDuplicates] = useState(1);
     const [effectivelyGradient, setEffectivelyGradient] = useState<
@@ -50,8 +58,9 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     const isReverse = dir === "down" || dir === "right";
 
     useGSAP(
-      () => {
-        if (!marqueeRef?.current || !containerRef.current) return;
+      (_, contextSafe) => {
+        if (!marqueeRef?.current || !containerRef.current || !contextSafe)
+          return;
 
         const containerMarquee = containerRef?.current;
 
@@ -91,6 +100,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         const containerMarqueeWidth = containerMarquee.offsetWidth;
         const marqueeChildrenWidth = marqueesChildren[0].offsetWidth;
         const startX = marqueesChildren[0].offsetLeft;
+        let obs: Observer | null = null;
 
         // Clamp scrollSpeed to valid range (1.1 to 4.0)
         const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
@@ -143,49 +153,80 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
          * - Speed changes are smoothly animated with acceleration and deceleration phases
          * - ScrollSpeed multiplier is applied and clamped to valid range
          */
-        Observer.create({
-          onChangeY(self) {
-            if (!followScrollDir) return;
-            let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
-            if (self.deltaY < 0) {
-              factor *= -1;
-            }
-            /**
-             * Create smooth speed transition animation
-             *
-             * Phase 1: Quick acceleration to new speed (0.2s)
-             * - timeScale: Controls timeline playback speed (higher = faster)
-             * - factor * clampedScrollSpeed: Initial speed boost for responsive feel
-             * - overwrite: Cancels any previous speed animations
-             *
-             * Phase 2: Gradual deceleration to sustained speed (1s delay + 1s duration)
-             * - factor / clampedScrollSpeed: Settle to a more moderate sustained speed
-             * - "+=0.3": Wait 0.3 seconds before starting deceleration
-             */
-            gsap
-              .timeline({
-                defaults: {
-                  ease: "none",
-                },
-              })
-              .to(tl, {
-                timeScale: factor * clampedScrollSpeed,
-                duration: 0.2,
-                overwrite: true,
-              })
-              .to(
-                tl,
-                {
-                  timeScale: factor / clampedScrollSpeed,
-                  duration: 1,
-                },
-                "+=0.3"
-              );
-          },
+        if (followScrollDir) {
+          obs = Observer.create({
+            onChangeY(self) {
+              let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
+              if (self.deltaY < 0) {
+                factor *= -1;
+              }
+              /**
+               * Create smooth speed transition animation
+               *
+               * Phase 1: Quick acceleration to new speed (0.2s)
+               * - timeScale: Controls timeline playback speed (higher = faster)
+               * - factor * clampedScrollSpeed: Initial speed boost for responsive feel
+               * - overwrite: Cancels any previous speed animations
+               *
+               * Phase 2: Gradual deceleration to sustained speed (1s delay + 1s duration)
+               * - factor / clampedScrollSpeed: Settle to a more moderate sustained speed
+               * - "+=0.3": Wait 0.3 seconds before starting deceleration
+               */
+              gsap
+                .timeline({
+                  defaults: {
+                    ease: "none",
+                  },
+                })
+                .to(tl, {
+                  timeScale: factor * clampedScrollSpeed,
+                  duration: 0.2,
+                  overwrite: true,
+                })
+                .to(
+                  tl,
+                  {
+                    timeScale: factor / clampedScrollSpeed,
+                    duration: 1,
+                  },
+                  "+=0.3"
+                );
+            },
+          });
+        }
+
+        const onMouseEnter = contextSafe(() => {
+          tl.timeScale(0);
         });
+        const onMouseLeave = contextSafe(() => {
+          tl.timeScale(1);
+        });
+
+        if (pauseOnHover) {
+          containerMarquee.addEventListener("mouseenter", onMouseEnter);
+          containerMarquee.addEventListener("mouseleave", onMouseLeave);
+        }
+
+        return () => {
+          containerMarquee.removeEventListener("mouseenter", onMouseEnter);
+          containerMarquee.removeEventListener("mouseleave", onMouseLeave);
+          tl.kill();
+          obs?.kill();
+        };
       },
       {
-        dependencies: [marqueeDuplicates],
+        dependencies: [
+          marqueeDuplicates,
+          dir,
+          loop,
+          paused,
+          fill,
+          followScrollDir,
+          scrollSpeed,
+          gradient,
+          gradientColor,
+          pauseOnHover,
+        ],
       }
     );
 
