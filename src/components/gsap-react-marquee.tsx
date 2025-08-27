@@ -1,6 +1,6 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { Observer } from "gsap/all";
+import { Draggable, InertiaPlugin, Observer } from "gsap/all";
 import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./gsap-react-marquee.style.css";
 
@@ -13,6 +13,8 @@ import {
   getMinWidth,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
+
+gsap.registerPlugin(useGSAP, Observer, InertiaPlugin, Draggable);
 
 const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
   (props, ref) => {
@@ -124,6 +126,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           startX,
           tl,
           isReverse,
+          marquees,
+          isVertical,
           props
         );
 
@@ -171,7 +175,10 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
               })
               .to(
                 tl,
-                { timeScale: factor / clampedScrollSpeed, duration: 1 },
+                {
+                  timeScale: factor / clampedScrollSpeed,
+                  duration: 1,
+                },
                 "+=0.3"
               );
           },

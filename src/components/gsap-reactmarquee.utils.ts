@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import gsap from "gsap";
+import { Draggable, InertiaPlugin } from "gsap/all";
 import { twMerge } from "tailwind-merge";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 
@@ -250,7 +251,7 @@ export const getMinWidth = (
 };
 
 /**
- * Creates a complex fill-based marquee animation with seamless looping
+ * Creates a complex marquee animation with seamless looping and draggable support
  *
  * This is the core animation engine that creates smooth, continuous scrolling.
  * It handles the complex math required for seamless looping by calculating
@@ -261,16 +262,20 @@ export const getMinWidth = (
  * 2. **Seamless Looping**: Calculate track length and loop points to prevent gaps
  * 3. **Staggered Animation**: Each element starts at different times for smooth flow
  * 4. **Direction Handling**: Support forward and reverse directions with proper timing
+ * 5. **Integrated Draggable**: Optional support for drag interaction with manual control
  *
  * Technical Details:
  * - Uses xPercent for percentage-based positioning (responsive to element width changes)
  * - Creates two-part animation: main movement + seamless loop reset
  * - Calculates precise durations based on distance and speed for consistent motion
+ * - Implements draggable with intelligent pause/resume animation handling
  *
  * @param elementsToAnimate - Array of DOM elements to animate (content or containers)
  * @param startX - Starting X position reference point
  * @param tl - GSAP timeline to add animations to
  * @param isReverse - Whether animation should play in reverse direction
+ * @param draggableTrigger - Element(s) that will trigger the draggable functionality
+ * @param isVertical - Whether the marquee scrolls vertically
  * @param props - Configuration object with spacing, speed, delay, and other settings
  */
 export const coreAnimation = (
@@ -278,6 +283,8 @@ export const coreAnimation = (
   startX: number,
   tl: gsap.core.Timeline,
   isReverse: boolean,
+  draggableTrigger: HTMLElement | HTMLElement[],
+  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): void => {
   const {
@@ -442,5 +449,94 @@ export const coreAnimation = (
         tl.totalTime(tl.rawTime() + tl.duration() * 100);
       });
     });
+  }
+
+  /**
+   * ========================================
+   * DRAGGABLE SECTION
+   * ========================================
+   *
+   * Implements interactive drag functionality for manual marquee control.
+   * When enabled, allows users to drag horizontally to control the animation
+   * position in real-time.
+   */
+
+  // Essential variables for draggable functionality
+  let proxy: HTMLElement;
+
+  if (typeof Draggable === "function" && props.draggable) {
+    // Create an invisible proxy element to handle drag calculations
+    proxy = document.createElement("div");
+    const wrap = gsap.utils.wrap(0, 1); // Wrapping function to keep values between 0 and 1
+    let ratio: number; // Ratio to convert drag position to timeline progress
+    let startProgress: number; // Timeline progress at drag start
+
+    /**
+     * Alignment function that syncs drag position with timeline progress
+     * Converts mouse movement into animation progress
+     */
+    const align = () => {
+      const axis = isVertical
+        ? draggable.startY - draggable.y
+        : draggable.startX - draggable.x;
+      tl.progress(wrap(startProgress + axis * ratio));
+    };
+
+    // Check InertiaPlugin availability for momentum scrolling
+    if (typeof InertiaPlugin === "undefined") {
+      console.warn(
+        "InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club"
+      );
+    }
+
+    const draggable = Draggable.create(proxy, {
+      trigger: draggableTrigger, // Element that will trigger the drag
+      type: isVertical ? "y" : "x",
+      onPress() {
+        // Initialization on click/touch
+        gsap.killTweensOf(tl); // Stop any ongoing animations on timeline
+        tl.pause(); // Pause main animation
+        startProgress = tl.progress(); // Store current progress
+        ratio = 1 / trackLength; // Calculate drag/progress ratio
+        gsap.set(proxy, { x: startProgress / -ratio }); // Position the proxy
+      },
+      onDrag: align, // Call align during drag
+      onThrowUpdate: align, // Call align during inertia
+      overshootTolerance: 0, // No overshoot tolerance
+      inertia: true, // Enable momentum scrolling
+      onThrowComplete: () => {
+        // Handle inertia completion
+        if (isReverse) {
+          // If paused is requested, stop and return
+          if (paused) {
+            tl.pause();
+            return;
+          }
+
+          // Position timeline at correct position and pause
+          tl.progress(tl.progress()).pause();
+
+          /**
+           * Start reverse playback after delay
+           * This creates the proper reverse scrolling effect
+           */
+          gsap.delayedCall(delay, () => {
+            tl.reverse(); // Start playing backwards
+
+            /**
+             * Handle seamless looping in reverse direction
+             * When reverse completes, restart from end position
+             * This prevents new delay in continuous reverse scrolling
+             */
+            tl.eventCallback("onReverseComplete", () => {
+              tl.totalTime(tl.rawTime() + tl.duration() * 100);
+            });
+          });
+        } else {
+          // For normal direction, simply resume the animation
+          tl.play();
+        }
+      },
+    })[0];
   }
 };
