@@ -41,6 +41,7 @@ export default [
         minimize: true,
         inject: true,
         sourceMap: false,
+        extract: false,
       }),
       terser({
         compress: {
