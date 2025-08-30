@@ -1,6 +1,6 @@
 # GSAP React Marquee
 
-A high-performance, customizable React marquee component powered by GSAP animations.
+A high-performance React marquee component powered by GSAP animations.
 
 ## Installation
 

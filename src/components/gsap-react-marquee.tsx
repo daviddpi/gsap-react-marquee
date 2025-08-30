@@ -271,9 +271,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             "--gradient-color": getGradientColor(),
           } as React.CSSProperties
         }
-        className={cn(
-          "gsap-react-marquee-container flex w-full overflow-hidden whitespace-nowrap"
-        )}
+        className={cn("gsap-react-marquee-container")}
       >
         <div ref={marqueeRef} className={cn("gsap-react-marquee")}>
           <div className={cn("gsap-react-marquee-content", className)}>

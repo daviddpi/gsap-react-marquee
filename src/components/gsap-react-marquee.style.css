@@ -1,3 +1,10 @@
+.gsap-react-marquee-container {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  white-space: preserve nowrap;
+}
+
 .gsap-react-marquee-container::after {
   content: "";
   position: absolute;

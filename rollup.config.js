@@ -32,14 +32,14 @@ export default [
       commonjs(),
       typescript({
         tsconfig: "./tsconfig.json",
-        declaration: false,
+        declaration: true,
+        declarationDir: "./dist/types",
         declarationMap: false,
         removeComments: true,
       }),
       postcss({
-        extract: true,
         minimize: true,
-        inject: false,
+        inject: true,
         sourceMap: false,
       }),
       terser({
@@ -66,7 +66,7 @@ export default [
     ],
   },
   {
-    input: "dist/index.d.ts",
+    input: "dist/types/index.d.ts",
     output: [{ file: "dist/index.d.ts", format: "esm" }],
     plugins: [
       dts({
