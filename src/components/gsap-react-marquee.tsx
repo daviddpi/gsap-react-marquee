@@ -37,6 +37,9 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       gradient = false,
       gradientColor = null,
       pauseOnHover = false,
+      alignRotationWithY = false,
+      spacing = 16,
+      speed = 100,
     } = props;
 
     const rootRef = useRef<HTMLDivElement>(null);
@@ -116,7 +119,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
         // Calculate total width and set marquee styles
         const totalWidth = gsap.utils
-          .toArray<HTMLElement>(marquee.children)
+          .toArray<HTMLElement>(marquees)
           .map((child) => child.offsetWidth)
           .reduce((a, b) => a + b, 0);
 
@@ -125,6 +128,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             marqueesChildren,
             totalWidth,
             containerMarqueeWidth,
+            isVertical,
             props
           ),
           flex: fill ? "0 0 auto" : "1",
@@ -226,7 +230,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           gradient,
           gradientColor,
           pauseOnHover,
+          alignRotationWithY,
+          spacing,
+          speed,
         ],
+        revertOnUpdate: true,
       }
     );
 

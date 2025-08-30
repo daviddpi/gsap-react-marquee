@@ -222,9 +222,13 @@ export const getMinWidth = (
   marqueesChildren: HTMLElement[],
   totalWidth: number,
   containerMarqueeWidth: number,
+  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): string | number => {
   const { fill = false, alignRotationWithY = false } = props;
+
+  if (fill && isVertical && alignRotationWithY)
+    return `${marqueesChildren[0].offsetHeight}px`;
 
   // Fill mode: Let content size itself naturally
   if (fill) return "auto";
