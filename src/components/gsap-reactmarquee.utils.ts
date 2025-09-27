@@ -158,46 +158,131 @@ export const setupContainerStyles = (
 };
 
 /**
+ * Checks if an element has an explicitly defined width
+ *
+ * Verifies if the element has a fixed width through:
+ * - Inline CSS style
+ * - CSS classes that define width
+ * - Computed CSS properties that are not 'auto'
+ *
+ * @param element - The HTML element to check
+ * @returns true if it has a defined width, false otherwise
+ */
+export const hasDefinedWidth = (element: HTMLElement): boolean => {
+  // Check for inline width
+  if (element.style.width && element.style.width !== "auto") {
+    return true;
+  }
+
+  // Check computed styles
+  const computedStyle = window.getComputedStyle(element);
+  const width = computedStyle.width;
+
+  // If width is 'auto' or undefined, container adapts to content
+  if (width === "auto" || !width) {
+    return false;
+  }
+
+  // Check if parent has dimensions that might influence this element
+  const parent = element.parentElement;
+  if (parent) {
+    const parentStyle = window.getComputedStyle(parent);
+    // If parent has auto width and this element has 100% width,
+    // then this element will also adapt to content
+    if (width === "100%" && parentStyle.width === "auto") {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Calculates the appropriate width reference for duplicate calculations
+ *
+ * Intelligent strategy:
+ * 1. If container has a defined width → use that
+ * 2. If container adapts to content → use viewport to avoid recursive loops
+ * 3. Always adds a safety margin to prevent edge cases
+ *
+ * @param containerElement - The marquee container element
+ * @param isVertical - Whether the marquee is vertical
+ * @returns The reference width to use for calculations
+ */
+export const getTargetWidth = (
+  containerElement: HTMLElement,
+  isVertical: boolean
+): number => {
+  if (hasDefinedWidth(containerElement)) {
+    // Container has a fixed width, we can use it safely
+    return isVertical
+      ? containerElement.offsetHeight
+      : containerElement.offsetWidth;
+  } else {
+    // Container adapts to content, use viewport to avoid loops
+    console.info(
+      "GSAPReactMarquee: Container has no defined width, using viewport as reference to prevent recursive expansion"
+    );
+    return isVertical ? window.innerHeight : window.innerWidth;
+  }
+};
+
+/**
  * Calculates the number of content duplicates needed for seamless looping
  *
- * For smooth infinite scrolling, we need enough content copies to fill the visible area
- * plus buffer space. This prevents gaps when content loops back to the beginning.
- *
- * Algorithm:
- * 1. If not in fill mode, only one copy is needed (content already spans container)
- * 2. Determine target width (viewport height for vertical, container width for horizontal)
- * 3. Calculate how many copies fit in the target space, rounding up for complete coverage
+ * Enhanced version that prevents recursive loops by automatically detecting
+ * whether the container has fixed dimensions or adapts to content.
  *
  * @param marqueeChildrenWidth - Width of a single content instance
  * @param containerMarqueeWidth - Width of the marquee container
  * @param isVertical - Whether the marquee scrolls vertically
  * @param props - Configuration object containing fill mode setting
+ * @param containerElement - Optional container element for dimension checking
  * @returns Number of content duplicates needed (minimum 1)
  */
 export const calculateDuplicates = (
   marqueeChildrenWidth: number,
   containerMarqueeWidth: number,
   isVertical: boolean,
-  props: GSAPReactMarqueeProps
+  props: GSAPReactMarqueeProps,
+  containerElement?: HTMLElement
 ): number => {
-  // If not filling, content presumably already spans the container
+  // If not in fill mode, content should already span the container
   if (!props.fill) return 1;
 
-  /**
-   * Determine the space we need to fill
-   * - Vertical: Use viewport height (since container is rotated 90°)
-   * - Horizontal: Use container width
-   */
-  const targetWidth = isVertical ? window.innerHeight : containerMarqueeWidth;
+  // Determine target width based on container situation
+  let targetWidth: number;
+
+  if (containerElement) {
+    // Use intelligent strategy if we have access to container
+    targetWidth = getTargetWidth(containerElement, isVertical);
+  } else {
+    // Fallback: use container width if available, otherwise viewport
+    targetWidth =
+      containerMarqueeWidth > 0
+        ? isVertical
+          ? window.innerHeight
+          : containerMarqueeWidth
+        : isVertical
+        ? window.innerHeight
+        : window.innerWidth;
+  }
 
   /**
    * Calculate required duplicates
    * Math.ceil ensures we have enough copies to fully cover the target width
    * Even if the last copy is partially visible, it prevents gaps during looping
    */
-  return marqueeChildrenWidth < targetWidth
-    ? Math.ceil(targetWidth / marqueeChildrenWidth)
-    : 1; // If content is already larger than target, one copy suffices
+  const calculatedDuplicates =
+    marqueeChildrenWidth < targetWidth
+      ? Math.ceil(targetWidth / marqueeChildrenWidth)
+      : 1;
+
+  // Safety limit to prevent extreme situations
+  const maxDuplicates = 15; // Slightly increased for very wide screens
+  const finalDuplicates = Math.min(calculatedDuplicates, maxDuplicates);
+
+  return finalDuplicates;
 };
 
 /**
