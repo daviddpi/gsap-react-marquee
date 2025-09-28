@@ -127,7 +127,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         gsap.set(marquees, {
           minWidth: getMinWidth(
             marqueesChildren,
-            totalWidth,
+            totalWidth / (marqueeDuplicates === 1 ? 2 : marqueeDuplicates),
             containerMarqueeWidth,
             isVertical,
             props
