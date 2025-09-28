@@ -331,6 +331,7 @@ export const getMinWidth = (
    * Prevents awkward gaps in the marquee display
    */
   if (totalWidth < containerMarqueeWidth) return "100%";
+  if (totalWidth > containerMarqueeWidth) return `${totalWidth}px`;
 
   /**
    * Content larger than container: Use actual content width
