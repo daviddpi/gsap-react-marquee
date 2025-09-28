@@ -336,7 +336,7 @@ export const getMinWidth = (
    * Content larger than container: Use actual content width
    * Allows content to overflow and scroll properly
    */
-  return `${totalWidth}px`;
+  return `${containerMarqueeWidth}px`;
 };
 
 /**
