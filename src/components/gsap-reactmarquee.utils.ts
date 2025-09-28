@@ -82,7 +82,7 @@ export const setupContainerStyles = (
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ) => {
-  const { spacing = 16, alignRotationWithY = false } = props;
+  const { spacing = 16, alignVertical = false } = props;
 
   /**
    * Apply base container styling
@@ -121,8 +121,8 @@ export const setupContainerStyles = (
    *
    * Use case: Vertical text marquee where text remains horizontally readable
    */
-  if (alignRotationWithY && marquees.length > 0) {
-    const marqueeHeight = marquees[0].offsetHeight;
+  if (alignVertical && marquees.length > 0) {
+    const marqueeChildrenHeight = marqueesChildren[0].offsetWidth;
 
     // Center align items within the container
     gsap.set(containerMarquee, {
@@ -139,10 +139,9 @@ export const setupContainerStyles = (
      */
     gsap.set(marqueesChildren, {
       rotate: -90, // Counter-rotate to keep text readable
-      x: (containerMarquee.offsetWidth - spacing) / 2 - spacing, // Center horizontally
       display: "flex",
       flexWrap: "wrap", // Allow text to wrap within constrained width
-      width: marqueeHeight, // Width constraint for wrapped text
+      height: marqueeChildrenHeight,
       wordBreak: "break-all", // Force word breaking if necessary
       whiteSpace: "break-spaces", // Preserve spaces while allowing breaks
     });
@@ -152,7 +151,7 @@ export const setupContainerStyles = (
      * Accounts for spacing to prevent overflow
      */
     gsap.set(marquees, {
-      height: containerMarquee.offsetWidth - spacing,
+      minWidth: containerMarquee.offsetWidth - spacing,
     });
   }
 };
@@ -310,9 +309,12 @@ export const getMinWidth = (
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): string | number => {
-  const { fill = false, alignRotationWithY = false } = props;
+  const { fill = false, alignVertical = false, spacing = 16 } = props;
 
-  if (fill && isVertical && alignRotationWithY)
+  if (isVertical && alignVertical && !fill)
+    return `${containerMarqueeWidth - spacing}px`;
+
+  if (fill && isVertical && alignVertical)
     return `${marqueesChildren[0].offsetHeight}px`;
 
   // Fill mode: Let content size itself naturally
@@ -322,7 +324,7 @@ export const getMinWidth = (
    * Rotation alignment mode: Use height as width
    * Since content is rotated 90°, height becomes the effective width
    */
-  if (alignRotationWithY && marqueesChildren.length > 0) {
+  if (alignVertical && marqueesChildren.length > 0) {
     return `${marqueesChildren[0].offsetHeight}px`;
   }
 
@@ -382,7 +384,7 @@ export const coreAnimation = (
     speed = 100,
     delay = 0,
     paused = false,
-    alignRotationWithY = false,
+    alignVertical = false,
   } = props;
 
   // Arrays to store calculated values for each element
@@ -461,7 +463,7 @@ export const coreAnimation = (
      * For rotation alignment mode, use height instead of width
      * since the element dimensions are effectively swapped
      */
-    const distanceToLoop = alignRotationWithY
+    const distanceToLoop = alignVertical
       ? distanceToStart + item.offsetHeight - spacing
       : distanceToStart + widths[i];
 

@@ -35,7 +35,7 @@ export type GSAPReactMarqueeProps = {
    * @type {boolean}
    * @default false
    */
-  alignRotationWithY?: boolean;
+  alignVertical?: boolean;
 
   /**
    * @description Delay before the animation starts

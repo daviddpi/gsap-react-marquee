@@ -37,7 +37,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       gradient = false,
       gradientColor = null,
       pauseOnHover = false,
-      alignRotationWithY = false,
+      alignVertical = false,
       spacing = 16,
       speed = 100,
     } = props;
@@ -108,6 +108,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         // Clamp scrollSpeed to valid range (1.1 to 4.0)
         const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
 
+        // TODO fix when alignVertical is true
         setMarqueeDuplicates(
           calculateDuplicates(
             marqueeChildrenWidth,
@@ -231,7 +232,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           gradient,
           gradientColor,
           pauseOnHover,
-          alignRotationWithY,
+          alignVertical,
           spacing,
           speed,
         ],
