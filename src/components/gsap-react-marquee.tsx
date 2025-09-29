@@ -201,10 +201,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         }
 
         const onMouseEnter = contextSafe(() => {
-          tl.timeScale(0);
+          tl.pause();
         });
         const onMouseLeave = contextSafe(() => {
-          tl.timeScale(isReverse ? -1 : 1);
+          if (isReverse) {
+            tl.reverse();
+          } else {
+            tl.play();
+          }
         });
 
         if (pauseOnHover) {
