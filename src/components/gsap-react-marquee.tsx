@@ -1,5 +1,3 @@
-"use client";
-
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Draggable, InertiaPlugin, Observer } from "gsap/all";
@@ -129,7 +127,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         gsap.set(marquees, {
           minWidth: getMinWidth(
             marqueesChildren,
-            totalWidth,
+            totalWidth / (marqueeDuplicates === 1 ? 2 : marqueeDuplicates),
             containerMarqueeWidth,
             isVertical,
             props
@@ -203,10 +201,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         }
 
         const onMouseEnter = contextSafe(() => {
-          tl.timeScale(0);
+          tl.pause();
         });
         const onMouseLeave = contextSafe(() => {
-          tl.timeScale(isReverse ? -1 : 1);
+          if (isReverse) {
+            tl.reverse();
+          } else {
+            tl.play();
+          }
         });
 
         if (pauseOnHover) {
