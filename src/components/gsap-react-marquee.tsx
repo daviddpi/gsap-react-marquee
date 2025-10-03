@@ -2,15 +2,14 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Draggable, InertiaPlugin, Observer } from "gsap/all";
 import {
+  type RefObject,
   forwardRef,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type RefObject,
 } from "react";
 import "./gsap-react-marquee.style.css";
-
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 import {
   calculateDuplicates,
@@ -49,6 +48,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     const [effectivelyGradient, setEffectivelyGradient] = useState<
       string | null
     >(null);
+    const [refreshTick, setRefreshTick] = useState(0);
 
     useLayoutEffect(() => {
       if (!gradient || !containerRef?.current) return;
@@ -59,6 +59,46 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
+
+    // Re-initialize when images finish loading or when content size changes
+    useLayoutEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const contentEl = container.querySelector(
+        ".gsap-react-marquee .gsap-react-marquee-content"
+      ) as HTMLElement | null;
+
+      let frame: number | null = null;
+      const bump = () => {
+        if (frame != null) return;
+        frame = requestAnimationFrame(() => {
+          setRefreshTick((t) => t + 1);
+          frame = null;
+        });
+      };
+
+      const ro = contentEl ? new ResizeObserver(bump) : null;
+      if (contentEl && ro) ro.observe(contentEl);
+
+      const imgs = Array.from(container.querySelectorAll("img"));
+      const onImgLoad = () => bump();
+      imgs.forEach((img) => {
+        if (img.complete) return; // already loaded
+        img.addEventListener("load", onImgLoad);
+        img.addEventListener("error", onImgLoad);
+      });
+
+      return () => {
+        ro?.disconnect();
+        imgs.forEach((img) => {
+          img.removeEventListener("load", onImgLoad);
+          img.removeEventListener("error", onImgLoad);
+        });
+        if (frame != null) cancelAnimationFrame(frame);
+      };
+      // Effect depends on children; the ref is stable and should not trigger a re-run.
+    }, [children]);
 
     useGSAP(
       (_, contextSafe) => {
@@ -81,7 +121,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         if (!marquee || !marqueesChildren) return;
 
         const tl = gsap.timeline({
-          paused: paused,
+          paused,
           repeat: loop,
           defaults: { ease: "none" },
           onReverseComplete() {
@@ -113,8 +153,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             marqueeChildrenWidth,
             containerMarqueeWidth,
             isVertical,
-            props,
-            containerMarquee
+            props
           )
         );
 
@@ -238,6 +277,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           alignRotationWithY,
           spacing,
           speed,
+          children,
+          refreshTick,
         ],
         revertOnUpdate: true,
       }
