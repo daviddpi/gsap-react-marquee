@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import gsap from "gsap";
 import { Draggable, InertiaPlugin } from "gsap/all";
 import { twMerge } from "tailwind-merge";
@@ -94,6 +94,10 @@ export const setupContainerStyles = (
     flexDirection: isVertical ? "column" : "row",
   });
 
+  gsap.set(marquees, {
+    gap: `${spacing}px`,
+  });
+
   /**
    * Handle vertical marquee specific adjustments
    * When isVertical is true, we use flex-direction: column
@@ -178,59 +182,44 @@ export const getTargetWidth = (
 /**
  * Calculates the number of content duplicates needed for seamless looping
  *
- * Enhanced version that prevents recursive loops by automatically detecting
- * whether the container has fixed dimensions or adapts to content.
+ * For smooth infinite scrolling, we need enough content copies to fill the visible area
+ * plus buffer space. This prevents gaps when content loops back to the beginning.
+ *
+ * Algorithm:
+ * 1. If not in fill mode, only one copy is needed (content already spans container)
+ * 2. Determine target width (viewport height for vertical, container width for horizontal)
+ * 3. Calculate how many copies fit in the target space, rounding up for complete coverage
  *
  * @param marqueeChildrenWidth - Width of a single content instance
  * @param containerMarqueeWidth - Width of the marquee container
  * @param isVertical - Whether the marquee scrolls vertically
  * @param props - Configuration object containing fill mode setting
- * @param containerElement - Optional container element for dimension checking
  * @returns Number of content duplicates needed (minimum 1)
  */
 export const calculateDuplicates = (
   marqueeChildrenWidth: number,
   containerMarqueeWidth: number,
   isVertical: boolean,
-  props: GSAPReactMarqueeProps,
-  containerElement?: HTMLElement
+  props: GSAPReactMarqueeProps
 ): number => {
-  // If not in fill mode, content should already span the container
+  // If not filling, content presumably already spans the container
   if (!props.fill) return 1;
 
-  // Determine target width based on container situation
-  let targetWidth: number;
-
-  if (containerElement) {
-    // Use intelligent strategy if we have access to container
-    targetWidth = getTargetWidth(containerElement, isVertical);
-  } else {
-    // Fallback: use container width if available, otherwise viewport
-    targetWidth =
-      containerMarqueeWidth > 0
-        ? isVertical
-          ? window.innerHeight
-          : containerMarqueeWidth
-        : isVertical
-        ? window.innerHeight
-        : window.innerWidth;
-  }
+  /**
+   * Determine the space we need to fill
+   * - Vertical: Use viewport height (since container is rotated 90°)
+   * - Horizontal: Use container width
+   */
+  const targetWidth = isVertical ? window.innerHeight : containerMarqueeWidth;
 
   /**
    * Calculate required duplicates
    * Math.ceil ensures we have enough copies to fully cover the target width
    * Even if the last copy is partially visible, it prevents gaps during looping
    */
-  const calculatedDuplicates =
-    marqueeChildrenWidth < targetWidth
-      ? Math.ceil(targetWidth / marqueeChildrenWidth)
-      : 1;
-
-  // Safety limit to prevent extreme situations
-  const maxDuplicates = 15; // Slightly increased for very wide screens
-  const finalDuplicates = Math.min(calculatedDuplicates, maxDuplicates);
-
-  return finalDuplicates;
+  return marqueeChildrenWidth < targetWidth
+    ? Math.ceil(targetWidth / marqueeChildrenWidth)
+    : 1; // If content is already larger than target, one copy suffices
 };
 
 /**
@@ -252,10 +241,8 @@ export const calculateDuplicates = (
  * @returns CSS size value (string with units or number for pixels)
  */
 export const getMinWidth = (
-  marqueesChildren: HTMLElement[],
   totalSize: number,
   containerSize: number,
-  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): string | number => {
   const { fill = false } = props;
