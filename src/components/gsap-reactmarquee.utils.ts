@@ -61,19 +61,19 @@ export const getEffectiveBackgroundColor = (el: HTMLElement): string => {
 };
 
 /**
- * Sets up container styles and rotation handling for the marquee
+ * Sets up container styles for the marquee
  *
- * This function handles the complex styling requirements for different marquee orientations:
+ * This function handles the styling requirements for different marquee orientations:
  *
- * 1. **Basic Setup**: Applies gap spacing and rotation for vertical marquees
- * 2. **Vertical Mode**: Rotates container 90° and adjusts width to parent height
- * 3. **Rotation Alignment**: Special mode for vertical text that remains readable
+ * 1. **Basic Setup**: Applies gap spacing
+ * 2. **Vertical Mode**: Uses flex-direction: column for up/down movement
+ * 3. **Horizontal Mode**: Uses default flex-direction: row for left/right movement
  *
  * @param containerMarquee - The main container element that holds all marquee instances
  * @param marquees - Array of individual marquee wrapper elements
  * @param marqueesChildren - Array of content container elements within each marquee
  * @param isVertical - Boolean indicating if marquee moves up/down instead of left/right
- * @param props - Configuration object containing spacing and alignment options
+ * @param props - Configuration object containing spacing options
  */
 export const setupContainerStyles = (
   containerMarquee: HTMLElement,
@@ -82,76 +82,25 @@ export const setupContainerStyles = (
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ) => {
-  const { spacing = 16, alignVertical = false } = props;
+  const { spacing = 16 } = props;
 
   /**
    * Apply base container styling
    * - gap: Space between marquee elements (prevents content overlap)
-   * - rotate: 90° rotation for vertical movement (transforms horizontal motion to vertical)
+   * - flexDirection: column for vertical, row for horizontal
    */
   gsap.set(containerMarquee, {
     gap: `${spacing}px`,
-    rotate: isVertical ? 90 : "0",
+    flexDirection: isVertical ? "column" : "row",
   });
 
   /**
    * Handle vertical marquee specific adjustments
-   * When isVertical is true, the container is rotated 90°, so we need to:
-   * 1. Set container width to match parent height (since it's rotated)
-   * 2. Allow content to overflow visible bounds for smooth transitions
+   * When isVertical is true, we use flex-direction: column
    */
   if (isVertical) {
-    const parent = containerMarquee.parentNode as HTMLElement;
-    gsap.set(containerMarquee, {
-      width: parent.offsetHeight, // Width becomes the vertical space available
-    });
-
     gsap.set(marqueesChildren, {
       overflow: "visible", // Prevents clipping during animation
-    });
-  }
-
-  /**
-   * Handle special rotation alignment mode
-   *
-   * This creates a complex layout where:
-   * - The main container is rotated for vertical movement
-   * - Individual content is counter-rotated to remain readable
-   * - Content is repositioned to align properly within the rotated space
-   *
-   * Use case: Vertical text marquee where text remains horizontally readable
-   */
-  if (alignVertical && marquees.length > 0) {
-    const marqueeChildrenHeight = marqueesChildren[0].offsetWidth;
-
-    // Center align items within the container
-    gsap.set(containerMarquee, {
-      alignItems: "center",
-    });
-
-    /**
-     * Counter-rotate content and reposition for proper alignment
-     *
-     * - rotate: -90° counters the container's 90° rotation
-     * - x: Horizontal offset to center content within rotated container
-     * - width: Set to marquee height since dimensions are swapped after rotation
-     * - flexWrap/wordBreak/whiteSpace: Handle text flow in constrained space
-     */
-    gsap.set(marqueesChildren, {
-      rotate: -90, // Counter-rotate to keep text readable
-      display: "flex",
-      flexWrap: "wrap", // Allow text to wrap within constrained width
-      height: marqueeChildrenHeight,
-      wordBreak: "break-all", // Force word breaking if necessary
-      whiteSpace: "break-spaces", // Preserve spaces while allowing breaks
-    });
-
-    /**
-     * Adjust marquee height to fit within the rotated container
-     * Accounts for spacing to prevent overflow
-     */
-    gsap.set(marquees, {
-      minWidth: containerMarquee.offsetWidth - spacing,
     });
   }
 };
@@ -285,61 +234,46 @@ export const calculateDuplicates = (
 };
 
 /**
- * Determines the minimum width for marquee elements based on content and container
+ * Determines the minimum width/height for marquee elements based on content and container
  *
  * This function ensures marquee elements have appropriate dimensions for their content
  * and container context, handling different modes and orientations.
  *
- * Width determination logic:
- * 1. **Fill mode**: Auto width lets content size naturally
- * 2. **Rotation alignment**: Use content height as width (rotated dimensions)
- * 3. **Undersized content**: Stretch to 100% to fill container
- * 4. **Oversized content**: Use actual content width for overflow scrolling
+ * Dimension determination logic:
+ * 1. **Fill mode**: Auto size lets content size naturally
+ * 2. **Undersized content**: Stretch to 100% to fill container
+ * 3. **Oversized content**: Use actual content size for overflow scrolling
  *
  * @param marqueesChildren - Array of content elements for dimension measurement
- * @param totalWidth - Combined width of all content elements
- * @param containerMarqueeWidth - Available container width
- * @param props - Configuration object containing fill and alignment settings
- * @returns CSS width value (string with units or number for pixels)
+ * @param totalSize - Combined width/height of all content elements
+ * @param containerSize - Available container width/height
+ * @param isVertical - Whether the marquee is vertical
+ * @param props - Configuration object containing fill settings
+ * @returns CSS size value (string with units or number for pixels)
  */
 export const getMinWidth = (
   marqueesChildren: HTMLElement[],
-  totalWidth: number,
-  containerMarqueeWidth: number,
+  totalSize: number,
+  containerSize: number,
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): string | number => {
-  const { fill = false, alignVertical = false, spacing = 16 } = props;
-
-  if (isVertical && alignVertical && !fill)
-    return `${containerMarqueeWidth - spacing}px`;
-
-  if (fill && isVertical && alignVertical)
-    return `${marqueesChildren[0].offsetHeight}px`;
+  const { fill = false } = props;
 
   // Fill mode: Let content size itself naturally
   if (fill) return "auto";
 
   /**
-   * Rotation alignment mode: Use height as width
-   * Since content is rotated 90°, height becomes the effective width
-   */
-  if (alignVertical && marqueesChildren.length > 0) {
-    return `${marqueesChildren[0].offsetHeight}px`;
-  }
-
-  /**
    * Content smaller than container: Stretch to fill
    * Prevents awkward gaps in the marquee display
    */
-  if (totalWidth < containerMarqueeWidth) return "100%";
-  if (totalWidth > containerMarqueeWidth) return `${totalWidth}px`;
+  if (totalSize < containerSize) return "100%";
+  if (totalSize > containerSize) return `${totalSize}px`;
 
   /**
-   * Content larger than container: Use actual content width
-   * Allows content to overflow and scroll properly
+   * Content matches container: Use container size
    */
-  return `${containerMarqueeWidth}px`;
+  return `${containerSize}px`;
 };
 
 /**
@@ -357,13 +291,13 @@ export const getMinWidth = (
  * 5. **Integrated Draggable**: Optional support for drag interaction with manual control
  *
  * Technical Details:
- * - Uses xPercent for percentage-based positioning (responsive to element width changes)
+ * - Uses xPercent/yPercent for percentage-based positioning (responsive to element size changes)
  * - Creates two-part animation: main movement + seamless loop reset
  * - Calculates precise durations based on distance and speed for consistent motion
  * - Implements draggable with intelligent pause/resume animation handling
  *
  * @param elementsToAnimate - Array of DOM elements to animate (content or containers)
- * @param startX - Starting X position reference point
+ * @param startPos - Starting position reference point (X or Y based on orientation)
  * @param tl - GSAP timeline to add animations to
  * @param isReverse - Whether animation should play in reverse direction
  * @param draggableTrigger - Element(s) that will trigger the draggable functionality
@@ -372,75 +306,83 @@ export const getMinWidth = (
  */
 export const coreAnimation = (
   elementsToAnimate: HTMLElement[],
-  startX: number,
+  startPos: number,
   tl: gsap.core.Timeline,
   isReverse: boolean,
   draggableTrigger: HTMLElement | HTMLElement[],
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): void => {
-  const {
-    spacing = 16,
-    speed = 100,
-    delay = 0,
-    paused = false,
-    alignVertical = false,
-  } = props;
+  const { spacing = 16, speed = 100, delay = 0, paused = false } = props;
 
   // Arrays to store calculated values for each element
-  const widths: number[] = []; // Element widths in pixels
-  const xPercents: number[] = []; // Current positions as percentages
+  const sizes: number[] = []; // Element widths/heights in pixels
+  const percents: number[] = []; // Current positions as percentages
   const latestPos = elementsToAnimate.length - 1; // Index of last element
+
+  // Determine which properties to use based on orientation
+  const percentProp = isVertical ? "yPercent" : "xPercent";
+  const posProp = isVertical ? "y" : "x";
+  const sizeProp = isVertical ? "height" : "width";
+  const offsetProp = isVertical ? "offsetTop" : "offsetLeft";
 
   /**
    * Initialize positions and calculate percentage values
    *
-   * GSAP's xPercent property positions elements relative to their own width:
-   * - 0% = element's left edge at current x position
-   * - -100% = element's right edge at current x position
-   * - 100% = element positioned one full width to the right
+   * GSAP's xPercent/yPercent property positions elements relative to their own size:
+   * - 0% = element's edge at current position
+   * - -100% = element's opposite edge at current position
+   * - 100% = element positioned one full size forward
    *
-   * This approach makes animations responsive to width changes
+   * This approach makes animations responsive to size changes
    */
   gsap.set(elementsToAnimate, {
-    xPercent: (i, el) => {
-      // Get element width and store for later calculations
-      const w = (widths[i] = parseFloat(
-        String(gsap.getProperty(el, "width", "px"))
+    [percentProp]: (i: number, el: HTMLElement) => {
+      // Get element size and store for later calculations
+      const size = (sizes[i] = parseFloat(
+        String(gsap.getProperty(el, sizeProp, "px"))
       ));
 
       /**
-       * Calculate current position as percentage of element width
+       * Calculate current position as percentage of element size
        * Combines pixel position with any existing percentage offset
        */
-      xPercents[i] =
-        (parseFloat(String(gsap.getProperty(el, "x", "px"))) / w) * 100 +
-        Number(gsap.getProperty(el, "xPercent"));
+      percents[i] =
+        (parseFloat(String(gsap.getProperty(el, posProp, "px"))) / size) * 100 +
+        Number(gsap.getProperty(el, percentProp));
 
-      return xPercents[i];
+      return percents[i];
     },
   });
 
-  // Reset x position to 0 since we're now using xPercent for positioning
-  gsap.set(elementsToAnimate, { x: 0 });
+  // Reset position to 0 since we're now using percent for positioning
+  gsap.set(elementsToAnimate, { [posProp]: 0 });
 
   /**
    * Calculate total track length for seamless looping
    *
    * Track length is the total distance content travels before looping back.
    * It includes:
-   * - Distance from start to last element's left edge
+   * - Distance from start to last element's edge
    * - Last element's offset percentage in pixels
-   * - Last element's full width
+   * - Last element's full size
    * - Spacing gap after last element
    *
    * This ensures smooth transitions when content loops back to beginning
    */
+  const lastElement = elementsToAnimate[latestPos];
+  const lastOffset = isVertical
+    ? lastElement.offsetTop
+    : lastElement.offsetLeft;
+  const lastSize = isVertical
+    ? lastElement.offsetHeight
+    : lastElement.offsetWidth;
+
   const trackLength =
-    elementsToAnimate[latestPos].offsetLeft +
-    (xPercents[latestPos] / 100) * widths[latestPos] -
-    startX +
-    elementsToAnimate[latestPos].offsetWidth +
+    lastOffset +
+    (percents[latestPos] / 100) * sizes[latestPos] -
+    startPos +
+    lastSize +
     spacing;
 
   /**
@@ -452,20 +394,16 @@ export const coreAnimation = (
    */
   elementsToAnimate.forEach((item, i) => {
     // Current position in pixels
-    const curX = (xPercents[i] / 100) * widths[i];
+    const curPos = (percents[i] / 100) * sizes[i];
 
     // Distance from element to animation start point
-    const distanceToStart = item.offsetLeft + curX - startX;
+    const elementOffset = isVertical ? item.offsetTop : item.offsetLeft;
+    const distanceToStart = elementOffset + curPos - startPos;
 
     /**
      * Calculate distance to complete loop point
-     *
-     * For rotation alignment mode, use height instead of width
-     * since the element dimensions are effectively swapped
      */
-    const distanceToLoop = alignVertical
-      ? distanceToStart + item.offsetHeight - spacing
-      : distanceToStart + widths[i];
+    const distanceToLoop = distanceToStart + sizes[i];
 
     /**
      * Part 1: Main animation - move from current position to loop point
@@ -477,7 +415,7 @@ export const coreAnimation = (
     tl.to(
       item,
       {
-        xPercent: ((curX - distanceToLoop) / widths[i]) * 100,
+        [percentProp]: ((curPos - distanceToLoop) / sizes[i]) * 100,
         duration: distanceToLoop / speed,
       },
       0 // Start immediately
@@ -488,15 +426,16 @@ export const coreAnimation = (
          * Part 2 Start: Position element at end of track
          * This creates the illusion of seamless continuation
          */
-        xPercent: ((curX - distanceToLoop + trackLength) / widths[i]) * 100,
+        [percentProp]:
+          ((curPos - distanceToLoop + trackLength) / sizes[i]) * 100,
       },
       {
         /**
          * Part 2 End: Move back to original start position
          * Completes the seamless loop cycle
          */
-        xPercent: xPercents[i],
-        duration: (curX - distanceToLoop + trackLength - curX) / speed,
+        [percentProp]: percents[i],
+        duration: (curPos - distanceToLoop + trackLength - curPos) / speed,
         immediateRender: false, // Don't render start position immediately
       },
       distanceToLoop / speed // Start after main animation completes
@@ -590,7 +529,7 @@ export const coreAnimation = (
         tl.pause(); // Pause main animation
         startProgress = tl.progress(); // Store current progress
         ratio = 1 / trackLength; // Calculate drag/progress ratio
-        gsap.set(proxy, { x: startProgress / -ratio }); // Position the proxy
+        gsap.set(proxy, { [posProp]: startProgress / -ratio }); // Position the proxy
       },
       onDrag: align, // Call align during drag
       onThrowUpdate: align, // Call align during inertia
