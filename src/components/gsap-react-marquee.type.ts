@@ -29,15 +29,6 @@ export type GSAPReactMarqueeProps = {
   paused?: boolean;
 
   /**
-   * @description Correctly orients (rotates) the content with respect to the Y axis.
-   * Useful for vertical movement ("up" | "down") to keep items upright via rotation fix.
-   * @issue ⚠️ Not recommended to use together with "left" or "right" direction, as it may cause layout issues.
-   * @type {boolean}
-   * @default false
-   */
-  alignRotationWithY?: boolean;
-
-  /**
    * @description Delay before the animation starts
    * @type {number}
    * @default 0
@@ -97,7 +88,7 @@ export type GSAPReactMarqueeProps = {
    * @type {boolean}
    * @default false
    */
-  followScrollDir?: boolean;
+  scrollFollow?: boolean;
 
   /**
    * @description Speed factor when syncing with page scroll, max value is 4

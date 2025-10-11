@@ -31,12 +31,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       loop = -1,
       paused = false,
       fill = false,
-      followScrollDir = false,
+      scrollFollow = false,
       scrollSpeed = 2.5,
       gradient = false,
       gradientColor = null,
       pauseOnHover = false,
-      alignRotationWithY = false,
       spacing = 16,
       speed = 100,
     } = props;
@@ -140,44 +139,45 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         );
 
         // Calculate dimensions and duplicates
-        const containerMarqueeWidth = containerMarquee.offsetWidth;
-        const marqueeChildrenWidth = marqueesChildren[0].offsetWidth;
-        const startX = marqueesChildren[0].offsetLeft;
+        const containerSize = isVertical
+          ? containerMarquee.offsetHeight
+          : containerMarquee.offsetWidth;
+        const marqueeChildrenSize = isVertical
+          ? marqueesChildren[0].offsetHeight
+          : marqueesChildren[0].offsetWidth;
+        const startPos = isVertical
+          ? marqueesChildren[0].offsetTop
+          : marqueesChildren[0].offsetLeft;
         let obs: Observer | null = null;
 
         // Clamp scrollSpeed to valid range (1.1 to 4.0)
         const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
 
         setMarqueeDuplicates(
-          calculateDuplicates(
-            marqueeChildrenWidth,
-            containerMarqueeWidth,
-            isVertical,
-            props
-          )
+          calculateDuplicates(marqueeChildrenSize, containerSize, props)
         );
 
-        // Calculate total width and set marquee styles
-        const totalWidth = gsap.utils
+        // Calculate total size and set marquee styles
+        const totalSize = gsap.utils
           .toArray<HTMLElement>(marquees)
-          .map((child) => child.offsetWidth)
+          .map((child) => (isVertical ? child.offsetHeight : child.offsetWidth))
           .reduce((a, b) => a + b, 0);
 
+        const minSizeValue = getMinWidth(
+          totalSize / (marqueeDuplicates === 1 ? 2 : marqueeDuplicates),
+          containerSize,
+          props
+        );
+
         gsap.set(marquees, {
-          minWidth: getMinWidth(
-            marqueesChildren,
-            totalWidth / (marqueeDuplicates === 1 ? 2 : marqueeDuplicates),
-            containerMarqueeWidth,
-            isVertical,
-            props
-          ),
+          [isVertical ? "minHeight" : "minWidth"]: minSizeValue,
           flex: fill ? "0 0 auto" : "1",
         });
 
         // Create appropriate animation based on fill setting
         coreAnimation(
           fill ? marqueesChildren : marquees,
-          startX,
+          startPos,
           tl,
           isReverse,
           marquees,
@@ -197,7 +197,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
          * - Speed changes are smoothly animated with acceleration and deceleration phases
          * - ScrollSpeed multiplier is applied and clamped to valid range
          */
-        if (followScrollDir) {
+        if (scrollFollow) {
           obs = Observer.create({
             onChangeY(self) {
               let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
@@ -269,12 +269,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           loop,
           paused,
           fill,
-          followScrollDir,
+          scrollFollow,
           scrollSpeed,
           gradient,
           gradientColor,
           pauseOnHover,
-          alignRotationWithY,
           spacing,
           speed,
           children,
@@ -325,7 +324,9 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             "--gradient-color": getGradientColor(),
           } as React.CSSProperties
         }
-        className={cn("gsap-react-marquee-container")}
+        className={cn("gsap-react-marquee-container", {
+          "gsap-react-marquee-vertical": isVertical,
+        })}
       >
         <div ref={marqueeRef} className={cn("gsap-react-marquee")}>
           <div className={cn("gsap-react-marquee-content", className)}>
