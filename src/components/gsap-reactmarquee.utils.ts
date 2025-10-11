@@ -199,26 +199,18 @@ export const getTargetWidth = (
 export const calculateDuplicates = (
   marqueeChildrenWidth: number,
   containerMarqueeWidth: number,
-  isVertical: boolean,
   props: GSAPReactMarqueeProps
 ): number => {
   // If not filling, content presumably already spans the container
   if (!props.fill) return 1;
 
   /**
-   * Determine the space we need to fill
-   * - Vertical: Use viewport height (since container is rotated 90°)
-   * - Horizontal: Use container width
-   */
-  const targetWidth = isVertical ? window.innerHeight : containerMarqueeWidth;
-
-  /**
    * Calculate required duplicates
    * Math.ceil ensures we have enough copies to fully cover the target width
    * Even if the last copy is partially visible, it prevents gaps during looping
    */
-  return marqueeChildrenWidth < targetWidth
-    ? Math.ceil(targetWidth / marqueeChildrenWidth)
+  return marqueeChildrenWidth < containerMarqueeWidth
+    ? Math.ceil(containerMarqueeWidth / marqueeChildrenWidth)
     : 1; // If content is already larger than target, one copy suffices
 };
 
@@ -311,7 +303,6 @@ export const coreAnimation = (
   const percentProp = isVertical ? "yPercent" : "xPercent";
   const posProp = isVertical ? "y" : "x";
   const sizeProp = isVertical ? "height" : "width";
-  const offsetProp = isVertical ? "offsetTop" : "offsetLeft";
 
   /**
    * Initialize positions and calculate percentage values

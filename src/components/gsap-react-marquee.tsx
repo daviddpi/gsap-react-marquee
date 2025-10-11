@@ -154,12 +154,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
 
         setMarqueeDuplicates(
-          calculateDuplicates(
-            marqueeChildrenSize,
-            containerSize,
-            isVertical,
-            props
-          )
+          calculateDuplicates(marqueeChildrenSize, containerSize, props)
         );
 
         // Calculate total size and set marquee styles
