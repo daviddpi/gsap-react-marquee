@@ -3,7 +3,7 @@
   "author": "David Domenico Piscopo",
   "description": "A high-performance React marquee component powered by GSAP",
   "license": "MIT",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -42,7 +42,7 @@
   "bugs": {
     "url": "https://github.com/daviddpi/gsap-react-marquee/issues"
   },
-  "homepage": "https://github.com/daviddpi/gsap-react-marquee#readme",
+  "homepage": "https://gsap-react-marquee-docs.vercel.app/",
   "peerDependencies": {
     "@gsap/react": "^2.1.1",
     "clsx": "^2.1.0",
