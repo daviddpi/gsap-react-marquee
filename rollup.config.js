@@ -17,6 +17,7 @@ export default [
         format: "cjs",
         sourcemap: false,
         exports: "named",
+        interop: "auto",
       },
       {
         file: packageJson.module,
@@ -59,8 +60,10 @@ export default [
     external: [
       "react",
       "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
       "gsap",
-      "gsap/all",
+      "gsap/all.js",
       "@gsap/react",
       "clsx",
       "tailwind-merge",
@@ -79,8 +82,10 @@ export default [
     external: [
       /\.css$/,
       "react",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
       "gsap",
-      "gsap/all",
+      "gsap/all.js",
       "@gsap/react",
       "clsx",
       "tailwind-merge",

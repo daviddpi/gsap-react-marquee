@@ -1,9 +1,11 @@
 import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
-import { Draggable, InertiaPlugin, Observer } from "gsap/all";
+import { gsap } from "gsap";
+import { Draggable, InertiaPlugin, Observer } from "gsap/all.js";
 import {
-  type RefObject,
+  type CSSProperties,
+  type MutableRefObject,
   forwardRef,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -12,11 +14,12 @@ import {
 import "./gsap-react-marquee.style.css";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 import {
-  calculateDuplicates,
+  calculateDuplicateCount,
   cn,
-  coreAnimation,
+  createMarqueeAnimation,
   getEffectiveBackgroundColor,
-  getMinWidth,
+  getTargetSize,
+  getMinSize,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
 
@@ -30,6 +33,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       dir = "left",
       loop = -1,
       paused = false,
+      delay = 0,
       fill = false,
       scrollFollow = false,
       scrollSpeed = 2.5,
@@ -38,197 +42,236 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       pauseOnHover = false,
       spacing = 16,
       speed = 100,
+      draggable = false,
     } = props;
 
-    const rootRef = useRef<HTMLDivElement>(null);
-    const containerRef = (ref as RefObject<HTMLDivElement>) || rootRef;
-    const marqueeRef = useRef<HTMLDivElement>(null);
-    const [marqueeDuplicates, setMarqueeDuplicates] = useState(1);
-    const [effectivelyGradient, setEffectivelyGradient] = useState<
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const marqueeRef = useRef<HTMLDivElement | null>(null);
+    const [duplicateCount, setDuplicateCount] = useState(1);
+    const [detectedGradientColor, setDetectedGradientColor] = useState<
       string | null
     >(null);
-    const [refreshTick, setRefreshTick] = useState(0);
+    const [measurementVersion, setMeasurementVersion] = useState(0);
+
+    const setContainerRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        rootRef.current = node;
+
+        if (typeof ref === "function") {
+          ref(node);
+          return;
+        }
+
+        if (ref) {
+          (ref as MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+      },
+      [ref]
+    );
 
     useLayoutEffect(() => {
-      if (!gradient || !containerRef?.current) return;
+      if (!gradient || !rootRef.current) return;
 
-      const effectiveBg = getEffectiveBackgroundColor(containerRef.current);
-      setEffectivelyGradient(effectiveBg);
+      const effectiveBackgroundColor = getEffectiveBackgroundColor(
+        rootRef.current
+      );
+      setDetectedGradientColor(effectiveBackgroundColor);
     }, [gradient]);
 
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
 
-    // Re-initialize when images finish loading or when content size changes
+    /**
+     * Re-measure when layout can change after the first render
+     *
+     * Images and responsive content often report a different size after mount.
+     * ResizeObserver catches container/content changes, while image load/error
+     * events catch late media changes that should restart the GSAP timeline.
+     */
     useLayoutEffect(() => {
-      const container = containerRef.current;
+      const container = rootRef.current;
       if (!container) return;
 
-      const contentEl = container.querySelector(
+      const firstContentElement = container.querySelector(
         ".gsap-react-marquee .gsap-react-marquee-content"
       ) as HTMLElement | null;
 
-      let frame: number | null = null;
-      const bump = () => {
-        if (frame != null) return;
-        frame = requestAnimationFrame(() => {
-          setRefreshTick((t) => t + 1);
-          frame = null;
+      let animationFrameId: number | null = null;
+      const scheduleMeasurement = () => {
+        if (animationFrameId != null) return;
+        animationFrameId = requestAnimationFrame(() => {
+          setMeasurementVersion((version) => version + 1);
+          animationFrameId = null;
         });
       };
 
-      const ro = contentEl ? new ResizeObserver(bump) : null;
-      if (contentEl && ro) ro.observe(contentEl);
+      const resizeObserver =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(scheduleMeasurement)
+          : null;
+      if (resizeObserver) {
+        resizeObserver.observe(container);
+        if (firstContentElement) resizeObserver.observe(firstContentElement);
+      }
 
-      const imgs = Array.from(container.querySelectorAll("img"));
-      const onImgLoad = () => bump();
-      imgs.forEach((img) => {
-        if (img.complete) return; // already loaded
-        img.addEventListener("load", onImgLoad);
-        img.addEventListener("error", onImgLoad);
+      const pendingImages = Array.from(container.querySelectorAll("img"));
+      const handleImageSettled = () => scheduleMeasurement();
+      pendingImages.forEach((image) => {
+        if (image.complete) return;
+        image.addEventListener("load", handleImageSettled);
+        image.addEventListener("error", handleImageSettled);
       });
 
       return () => {
-        ro?.disconnect();
-        imgs.forEach((img) => {
-          img.removeEventListener("load", onImgLoad);
-          img.removeEventListener("error", onImgLoad);
+        resizeObserver?.disconnect();
+        pendingImages.forEach((image) => {
+          image.removeEventListener("load", handleImageSettled);
+          image.removeEventListener("error", handleImageSettled);
         });
-        if (frame != null) cancelAnimationFrame(frame);
+        if (animationFrameId != null) cancelAnimationFrame(animationFrameId);
       };
-      // Effect depends on children; the ref is stable and should not trigger a re-run.
-    }, [children]);
+    }, [children, className]);
 
     useGSAP(
       (_, contextSafe) => {
-        if (!marqueeRef?.current || !containerRef.current || !contextSafe)
-          return;
+        if (!marqueeRef.current || !rootRef.current || !contextSafe) return;
 
-        const containerMarquee = containerRef?.current;
+        const containerElement = rootRef.current;
 
-        const marquees = gsap.utils.toArray<HTMLElement>(
-          containerMarquee.querySelectorAll(".gsap-react-marquee")
+        /**
+         * Pass only animation-related props to helpers.
+         * This keeps utility calls explicit and avoids reading props.draggable
+         * or other nested values from inside lower-level functions.
+         */
+        const animationProps = {
+          children,
+          fill,
+          spacing,
+          speed,
+          delay,
+          paused,
+          draggable,
+        } satisfies GSAPReactMarqueeProps;
+
+        const marqueeElements = gsap.utils.toArray<HTMLElement>(
+          containerElement.querySelectorAll(".gsap-react-marquee")
         );
-        const marqueesChildren = gsap.utils.toArray<HTMLElement>(
-          containerMarquee.querySelectorAll(
+        const contentElements = gsap.utils.toArray<HTMLElement>(
+          containerElement.querySelectorAll(
             ".gsap-react-marquee .gsap-react-marquee-content"
           )
         );
 
-        const marquee = marqueeRef.current;
+        if (!contentElements.length) return;
 
-        if (!marquee || !marqueesChildren) return;
+        setupContainerStyles(
+          containerElement,
+          marqueeElements,
+          contentElements,
+          isVertical,
+          animationProps
+        );
 
-        const tl = gsap.timeline({
+        const containerSize = isVertical
+          ? containerElement.offsetHeight
+          : containerElement.offsetWidth;
+        const contentSize = isVertical
+          ? contentElements[0].offsetHeight
+          : contentElements[0].offsetWidth;
+        const targetSize = getTargetSize(containerElement, isVertical);
+        const startPosition = isVertical
+          ? contentElements[0].offsetTop
+          : contentElements[0].offsetLeft;
+        let scrollObserver: Observer | null = null;
+
+        const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
+
+        /**
+         * Duplicate count affects rendered DOM. When the measured count changes,
+         * update state and let React render the correct number of cloned items
+         * before creating the GSAP timeline.
+         */
+        const nextDuplicateCount = calculateDuplicateCount(
+          contentSize,
+          targetSize,
+          animationProps
+        );
+        if (duplicateCount !== nextDuplicateCount) {
+          setDuplicateCount(nextDuplicateCount);
+          return;
+        }
+
+        /**
+         * Timeline owns the continuous marquee movement. Reverse directions start
+         * from the end of the timeline so right/down movement loops correctly.
+         */
+        const timeline = gsap.timeline({
           paused,
           repeat: loop,
           defaults: { ease: "none" },
           onReverseComplete() {
-            // start the animation from the end, when scrolling in reverse (up)
-            tl.totalTime(tl.rawTime() + tl.duration() * 100);
+            timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
           },
         });
 
-        // Setup container and initial styles
-        setupContainerStyles(
-          containerMarquee,
-          marquees,
-          marqueesChildren,
-          isVertical,
-          props
-        );
-
-        // Calculate dimensions and duplicates
-        const containerSize = isVertical
-          ? containerMarquee.offsetHeight
-          : containerMarquee.offsetWidth;
-        const marqueeChildrenSize = isVertical
-          ? marqueesChildren[0].offsetHeight
-          : marqueesChildren[0].offsetWidth;
-        const startPos = isVertical
-          ? marqueesChildren[0].offsetTop
-          : marqueesChildren[0].offsetLeft;
-        let obs: Observer | null = null;
-
-        // Clamp scrollSpeed to valid range (1.1 to 4.0)
-        const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
-
-        setMarqueeDuplicates(
-          calculateDuplicates(marqueeChildrenSize, containerSize, props)
-        );
-
-        // Calculate total size and set marquee styles
-        const totalSize = gsap.utils
-          .toArray<HTMLElement>(marquees)
-          .map((child) => (isVertical ? child.offsetHeight : child.offsetWidth))
+        const totalTrackSize = marqueeElements
+          .map((element) =>
+            isVertical ? element.offsetHeight : element.offsetWidth
+          )
           .reduce((a, b) => a + b, 0);
 
-        const minSizeValue = getMinWidth(
-          totalSize / (marqueeDuplicates === 1 ? 2 : marqueeDuplicates),
+        /**
+         * In normal mode there is one original item and one clone, so half the
+         * track represents one logical item. Fill mode uses auto sizing because
+         * the cloned content itself defines the track.
+         */
+        const minSizeValue = getMinSize(
+          fill ? 0 : totalTrackSize / 2,
           containerSize,
-          props
+          animationProps
         );
 
-        gsap.set(marquees, {
+        gsap.set(marqueeElements, {
           [isVertical ? "minHeight" : "minWidth"]: minSizeValue,
           flex: fill ? "0 0 auto" : "1",
         });
 
-        // Create appropriate animation based on fill setting
-        coreAnimation(
-          fill ? marqueesChildren : marquees,
-          startPos,
-          tl,
+        const cleanupMarqueeAnimation = createMarqueeAnimation(
+          fill ? contentElements : marqueeElements,
+          startPosition,
+          timeline,
           isReverse,
-          marquees,
+          marqueeElements,
           isVertical,
-          props
+          animationProps
         );
 
-        /**
-         * GSAP Observer for scroll-based speed control
-         *
-         * This creates an interactive experience where users can control
-         * the marquee speed and direction through mouse wheel scrolling.
-         *
-         * Behavior:
-         * - Scroll down: Increases speed in normal direction
-         * - Scroll up: Increases speed in reverse direction or slows normal direction
-         * - Speed changes are smoothly animated with acceleration and deceleration phases
-         * - ScrollSpeed multiplier is applied and clamped to valid range
-         */
         if (scrollFollow) {
-          obs = Observer.create({
+          scrollObserver = Observer.create({
             onChangeY(self) {
+              /**
+               * Wheel movement temporarily changes timeline speed and direction.
+               * The first tween gives an immediate response; the second eases
+               * back to a steadier speed so scrolling does not feel abrupt.
+               */
               let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
               if (self.deltaY < 0) {
                 factor *= -1;
               }
-              /**
-               * Create smooth speed transition animation
-               *
-               * Phase 1: Quick acceleration to new speed (0.2s)
-               * - timeScale: Controls timeline playback speed (higher = faster)
-               * - factor * clampedScrollSpeed: Initial speed boost for responsive feel
-               * - overwrite: Cancels any previous speed animations
-               *
-               * Phase 2: Gradual deceleration to sustained speed (1s delay + 1s duration)
-               * - factor / clampedScrollSpeed: Settle to a more moderate sustained speed
-               * - "+=0.3": Wait 0.3 seconds before starting deceleration
-               */
+
               gsap
                 .timeline({
                   defaults: {
                     ease: "none",
                   },
                 })
-                .to(tl, {
+                .to(timeline, {
                   timeScale: factor * clampedScrollSpeed,
                   duration: 0.2,
                   overwrite: true,
                 })
                 .to(
-                  tl,
+                  timeline,
                   {
                     timeScale: factor / clampedScrollSpeed,
                     duration: 1,
@@ -240,89 +283,87 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         }
 
         const onMouseEnter = contextSafe(() => {
-          tl.pause();
+          timeline.pause();
         });
         const onMouseLeave = contextSafe(() => {
           if (isReverse) {
-            tl.reverse();
+            timeline.reverse();
           } else {
-            tl.play();
+            timeline.play();
           }
         });
 
         if (pauseOnHover) {
-          containerMarquee.addEventListener("mouseenter", onMouseEnter);
-          containerMarquee.addEventListener("mouseleave", onMouseLeave);
+          containerElement.addEventListener("mouseenter", onMouseEnter);
+          containerElement.addEventListener("mouseleave", onMouseLeave);
         }
 
         return () => {
-          containerMarquee.removeEventListener("mouseenter", onMouseEnter);
-          containerMarquee.removeEventListener("mouseleave", onMouseLeave);
-          tl.kill();
-          obs?.kill();
+          containerElement.removeEventListener("mouseenter", onMouseEnter);
+          containerElement.removeEventListener("mouseleave", onMouseLeave);
+          gsap.killTweensOf(timeline);
+          timeline.kill();
+          scrollObserver?.kill();
+          cleanupMarqueeAnimation?.();
         };
       },
       {
         dependencies: [
-          marqueeDuplicates,
+          duplicateCount,
           dir,
           loop,
           paused,
+          delay,
           fill,
           scrollFollow,
           scrollSpeed,
-          gradient,
-          gradientColor,
           pauseOnHover,
           spacing,
           speed,
+          draggable,
+          className,
           children,
-          refreshTick,
+          measurementVersion,
         ],
         revertOnUpdate: true,
       }
     );
 
-    const getGradientColor = (): string => {
-      // Priority order: explicit gradientColor > auto-detected > fallback
-      if (gradientColor) {
-        return gradientColor; // User-specified color takes precedence
-      }
-
-      if (gradient && effectivelyGradient) {
-        return effectivelyGradient; // Auto-detected background color
-      }
-
-      return "transparent"; // Default fallback
-    };
+    /**
+     * Gradient color priority:
+     * 1. Explicit gradientColor prop.
+     * 2. Auto-detected nearest background color.
+     * 3. Transparent fallback when gradients are disabled or undetected.
+     */
+    const gradientColorValue =
+      gradientColor ??
+      (gradient ? detectedGradientColor : null) ??
+      "transparent";
 
     /**
-     * Generate cloned marquee elements for seamless looping
-     *
-     * Creates multiple copies of the content based on calculated duplicates.
-     * Each clone maintains the same structure and styling as the original.
-     * Memoized to prevent unnecessary re-renders when dependencies haven't changed.
+     * Render cloned marquee items after measurement.
+     * The original item is always rendered above; duplicateCount controls only
+     * the additional copies needed for the current container/content size.
      */
-    const clonedMarquees = useMemo(() => {
-      if (!Number.isFinite(marqueeDuplicates) || marqueeDuplicates <= 0)
-        return null;
+    const clonedItems = useMemo(() => {
+      if (!Number.isFinite(duplicateCount) || duplicateCount <= 0) return null;
 
-      return Array.from({ length: marqueeDuplicates }, (_, i) => (
+      return Array.from({ length: duplicateCount }, (_, i) => (
         <div key={i} className={cn("gsap-react-marquee")}>
           <div className={cn("gsap-react-marquee-content", className)}>
             {children}
           </div>
         </div>
       ));
-    }, [marqueeDuplicates, className, children]);
+    }, [duplicateCount, className, children]);
 
     return (
       <div
-        ref={containerRef}
+        ref={setContainerRef}
         style={
           {
-            "--gradient-color": getGradientColor(),
-          } as React.CSSProperties
+            "--gradient-color": gradientColorValue,
+          } as CSSProperties
         }
         className={cn("gsap-react-marquee-container", {
           "gsap-react-marquee-vertical": isVertical,
@@ -333,7 +374,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             {children}
           </div>
         </div>
-        {clonedMarquees}
+        {clonedItems}
       </div>
     );
   }
