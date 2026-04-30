@@ -1,150 +1,232 @@
 # GSAP React Marquee
 
-A high-performance React marquee component powered by GSAP animations with intelligent container detection and seamless looping.
+`gsap-react-marquee` is a React marquee component powered by GSAP. It supports horizontal and vertical scrolling, seamless looping, optional fill mode, pause-on-hover, scroll-follow speed changes, draggable interaction, gradient overlays, and TypeScript types.
 
 ## Installation
 
 ```bash
-npm install gsap-react-marquee
-# or
-yarn add gsap-react-marquee
-# or
-pnpm add gsap-react-marquee
+npm install gsap-react-marquee gsap @gsap/react
 ```
 
-## Usage
+```bash
+yarn add gsap-react-marquee gsap @gsap/react
+```
+
+```bash
+pnpm add gsap-react-marquee gsap @gsap/react
+```
+
+`react`, `react-dom`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app.
+
+## Basic Usage
 
 ```tsx
 import Marquee from "gsap-react-marquee";
 
-function App() {
+export function App() {
   return (
-    <Marquee dir="left" speed={100} fill={true} spacing={16}>
-      <div>Hello world</div>
+    <Marquee dir="left" speed={100} spacing={16}>
+      <span>Scrolling content</span>
     </Marquee>
   );
 }
 ```
 
-## Features
-
-- **Intelligent Container Detection**: Automatically detects whether containers have fixed dimensions or adapt to content, preventing recursive expansion loops
-- **Seamless Looping**: Advanced duplicate calculation ensures smooth infinite scrolling without gaps
-- **High Performance**: Built with GSAP for optimal animation performance
-- **Responsive Design**: Adapts to different screen sizes and container dimensions
-- **Multiple Directions**: Support for horizontal (left/right) and vertical (up/down) scrolling with proper axis handling
-- **Smart Gradient Overlays**: Automatic gradient positioning based on marquee orientation
-- **Interactive Controls**: Optional draggable interface and scroll synchronization
-- **TypeScript Support**: Full type safety and IntelliSense support
-
-## Props
-
-| Prop            | Type                                  | Default  | Description                                                   |
-| --------------- | ------------------------------------- | -------- | ------------------------------------------------------------- |
-| `children`      | `ReactNode`                           | –        | Content to render inside the marquee                          |
-| `className`     | `string`                              | –        | Additional CSS classes for styling                            |
-| `dir`           | `"right" \| "left" \| "up" \| "down"` | `"left"` | Direction of the marquee movement                             |
-| `loop`          | `number`                              | `-1`     | Number of loops (`-1` = infinite)                             |
-| `paused`        | `boolean`                             | `false`  | Whether the marquee animation should be paused                |
-| `delay`         | `number`                              | `0`      | Delay before the animation starts (in seconds)                |
-| `speed`         | `number`                              | `100`    | Speed of the marquee animation in px/s                        |
-| `fill`          | `boolean`                             | `false`  | Whether the marquee should continuously fill the space        |
-| `pauseOnHover`  | `boolean`                             | `false`  | Pause the marquee when hovering                               |
-| `gradient`      | `boolean`                             | `false`  | Enable gradient overlay (auto-adapts to orientation)          |
-| `gradientColor` | `string`                              | –        | Color of the gradient if enabled                              |
-| `spacing`       | `number`                              | `16`     | Spacing between repeated elements in px                       |
-| `draggable`     | `boolean`                             | `false`  | Enable dragging to scroll manually                            |
-| `scrollFollow`  | `boolean`                             | `false`  | Sync marquee with page scroll direction                       |
-| `scrollSpeed`   | `number`                              | `2.5`    | Speed factor when syncing with page scroll (max: 4, min: 1.1) |
-
-## Advanced Features
-
-### Intelligent Container Detection
-
-The component automatically detects container dimensions to prevent recursive expansion:
-
-- **Fixed Width Containers**: Uses container dimensions for optimal duplicate calculation
-- **Auto-Width Containers**: Falls back to viewport dimensions to prevent layout loops
-- **Safety Limits**: Maximum of 15 duplicates to prevent performance issues
-- **Development Logging**: Debug information in development mode
-
-### Seamless Looping Algorithm
-
-Enhanced duplicate calculation ensures perfect infinite scrolling:
-
-- **Smart Target Size**: Intelligently determines the space to fill (width for horizontal, height for vertical)
-- **Gap Prevention**: Calculates exact duplicates needed to eliminate visual gaps
-- **Performance Optimized**: Minimal DOM elements for maximum performance
-
-### Orientation-Aware Animations
-
-The marquee automatically adapts its animation system based on direction:
-
-- **Horizontal (`left`/`right`)**: Uses `xPercent` for X-axis animations with `flexDirection: row`
-- **Vertical (`up`/`down`)**: Uses `yPercent` for Y-axis animations with `flexDirection: column`
-- **Smart Gradients**: Gradient overlays automatically position themselves based on scroll direction
-  - Horizontal: Side gradients (left and right edges)
-  - Vertical: Top and bottom gradients
-
-### Interactive Features
-
-- **Draggable Support**: Drag to manually control the marquee position
-- **Scroll Synchronization**: Link marquee speed to page scroll direction
-- **Pause on Hover**: Temporarily stop animation when hovering
-- **Inertia Scrolling**: Smooth momentum-based scrolling when dragging (requires GSAP InertiaPlugin)
+The package injects its base CSS through the bundled entrypoint, so no separate stylesheet import is required.
 
 ## Examples
 
-### Basic Marquee
+### Continuous Fill
+
+Use `fill` when a short piece of content should repeat enough times to cover the visible marquee area.
 
 ```tsx
-<Marquee dir="left" speed={50}>
-  <span>Scrolling text goes here</span>
+<Marquee fill spacing={24} speed={80}>
+  <span>React</span>
+  <span>GSAP</span>
+  <span>Animation</span>
 </Marquee>
 ```
 
-### Vertical Marquee with Gradient
+### Vertical Marquee
 
 ```tsx
-<Marquee dir="up" speed={80} gradient={true} gradient>
+<Marquee dir="up" speed={80} spacing={12}>
   <div>Item 1</div>
   <div>Item 2</div>
   <div>Item 3</div>
 </Marquee>
 ```
 
-### Interactive Draggable Marquee
+### Gradient Overlay
+
+When `gradient` is enabled, the component detects the nearest non-transparent background color and uses it for the edge fade. You can override the color with `gradientColor`.
 
 ```tsx
-<Marquee dir="right" speed={100} draggable={true} pauseOnHover={true}>
-  <img src="image1.jpg" alt="1" />
-  <img src="image2.jpg" alt="2" />
-  <img src="image3.jpg" alt="3" />
+<Marquee gradient gradientColor="#ffffff">
+  <span>Faded edges</span>
 </Marquee>
 ```
 
-### Scroll-Synced Marquee
+### Pause On Hover
 
 ```tsx
-<Marquee dir="left" speed={120} scrollFollow={true} scrollSpeed={3}>
-  <div>Scroll the page to see the effect</div>
+<Marquee pauseOnHover>
+  <span>Hover to pause</span>
 </Marquee>
 ```
 
-## Changelog
+### Scroll-Follow
 
-### v0.3.0
+`scrollFollow` changes the marquee timeline speed and direction based on vertical wheel movement.
 
-- 🎨 **BREAKING**: Removed `alignVertical` prop - vertical marquees now use native flex-column layout
-- ✨ Added proper Y-axis animations for vertical directions (`up`/`down`)
-- 🎨 Smart gradient overlays that auto-adapt to marquee orientation
-- 🔧 Refactored animation engine to support both X and Y axis seamlessly
-- 📊 Improved dimension calculations for vertical marquees
+```tsx
+<Marquee scrollFollow scrollSpeed={3}>
+  <span>Scroll the page or wheel over the document</span>
+</Marquee>
+```
 
-### v0.2.4
+### Draggable
 
-- ✨ Added intelligent container detection to prevent recursive expansion
-- 🚀 Enhanced duplicate calculation algorithm for better performance
-- 🔧 Improved seamless looping with smarter target width calculation
-- 📝 Added comprehensive debug logging for development
-- 🛡️ Added safety limits to prevent extreme duplicate scenarios
+`draggable` lets users drag the marquee track manually. Momentum throwing uses GSAP's `InertiaPlugin`. The package imports the plugin from `gsap/all.js`; if your GSAP setup does not include access to InertiaPlugin, dragging still initializes but momentum behavior may be limited by GSAP availability.
+
+```tsx
+<Marquee draggable pauseOnHover>
+  <img src="/image-1.jpg" alt="Gallery image 1" />
+  <img src="/image-2.jpg" alt="Gallery image 2" />
+  <img src="/image-3.jpg" alt="Gallery image 3" />
+</Marquee>
+```
+
+### Forwarded Ref
+
+The component forwards a ref to the root marquee container. Both object refs and callback refs are supported.
+
+```tsx
+import { useRef } from "react";
+import Marquee from "gsap-react-marquee";
+
+export function Example() {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  return (
+    <Marquee ref={ref} fill>
+      <span>Measured container</span>
+    </Marquee>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `children` | `ReactNode` | Required | Content rendered inside each marquee item. |
+| `className` | `string` | `undefined` | Class applied to each `.gsap-react-marquee-content` element. |
+| `dir` | `"left" \| "right" \| "up" \| "down"` | `"left"` | Direction of movement. |
+| `loop` | `number` | `-1` | Number of timeline repeats. `-1` means infinite. |
+| `paused` | `boolean` | `false` | Starts the timeline paused. |
+| `delay` | `number` | `0` | Delay in seconds before the timeline starts. |
+| `speed` | `number` | `100` | Animation speed in pixels per second. |
+| `fill` | `boolean` | `false` | Repeats content enough times to cover the measured marquee area. |
+| `pauseOnHover` | `boolean` | `false` | Pauses on pointer hover and resumes on leave. |
+| `gradient` | `boolean` | `false` | Enables edge gradient overlays. |
+| `gradientColor` | `string` | `undefined` | Explicit gradient color. Overrides automatic background detection. |
+| `spacing` | `number` | `16` | Gap between marquee items, in pixels. |
+| `draggable` | `boolean` | `false` | Enables manual drag control. |
+| `scrollFollow` | `boolean` | `false` | Adjusts timeline speed from wheel/scroll direction. |
+| `scrollSpeed` | `number` | `2.5` | Scroll-follow multiplier. Clamped between `1.1` and `4`. |
+
+## How Sizing Works
+
+The component measures the root container and first content item after mount. It then creates enough cloned marquee items for the selected mode and starts a GSAP timeline.
+
+In normal mode (`fill={false}`), the component renders one original item plus one clone. This is suitable when your content is already large enough to create a continuous loop.
+
+In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size. The duplicate count is capped to prevent excessive DOM growth, and the component re-measures when the container, the first content item, child content, or unloaded images change size.
+
+If the container has no reliable defined size, the component falls back to the viewport width or height as its measurement target. This avoids recursive expansion when the marquee is placed inside content-sized layouts.
+
+## Styling
+
+The root element receives these classes:
+
+```html
+<div class="gsap-react-marquee-container">
+  <div class="gsap-react-marquee">
+    <div class="gsap-react-marquee-content">...</div>
+  </div>
+</div>
+```
+
+Vertical marquees also receive:
+
+```html
+<div class="gsap-react-marquee-container gsap-react-marquee-vertical">
+```
+
+Use `className` to style the repeated content wrapper:
+
+```tsx
+<Marquee className="items-center gap-4">
+  <span>One</span>
+  <span>Two</span>
+</Marquee>
+```
+
+For predictable measurement, give the marquee or its parent a stable width for horizontal marquees and a stable height for vertical marquees.
+
+## Runtime Notes
+
+- The component uses `useLayoutEffect`, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements, so it is intended for client-side rendering.
+- In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
+- Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
+- Changing animation props such as `dir`, `speed`, `delay`, `fill`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+
+## Troubleshooting
+
+### The marquee has gaps
+
+Use `fill={true}` for short content, increase `spacing` only as much as needed, and make sure images/fonts have stable dimensions. For image-heavy marquees, set explicit image width and height to reduce layout shifts.
+
+### Vertical marquee does not move correctly
+
+Give the container or one of its parents a real height. Vertical mode measures height, not width.
+
+### The marquee expands the page
+
+Place it in a container with an explicit width or max width. In fill mode, the component falls back to viewport measurement when it detects content-sized containers, but explicit layout constraints are still more predictable.
+
+### Dragging has no momentum
+
+Momentum depends on GSAP `InertiaPlugin` availability. If the plugin is not available in your GSAP installation, dragging can still work without inertia-style throwing.
+
+## Development
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Run a TypeScript check:
+
+```bash
+pnpm exec tsc --noEmit
+```
+
+Build the package:
+
+```bash
+pnpm run build
+```
+
+Preview the published package contents:
+
+```bash
+npm pack --dry-run
+```
+
+## License
+
+MIT

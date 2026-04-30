@@ -1,551 +1,468 @@
 import { type ClassValue, clsx } from "clsx";
-import gsap from "gsap";
-import { Draggable, InertiaPlugin } from "gsap/all";
+import { gsap } from "gsap";
+import { Draggable, InertiaPlugin } from "gsap/all.js";
 import { twMerge } from "tailwind-merge";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
+
+const CONTENT_SIZED_DIMENSIONS = new Set([
+  "",
+  "auto",
+  "fit-content",
+  "min-content",
+  "max-content",
+  "-moz-fit-content",
+  "-webkit-fit-content",
+]);
+
+const MAX_DUPLICATES = 15;
+
+type GSAPTimeline = ReturnType<typeof gsap.timeline>;
 
 /**
  * Utility function to merge Tailwind classes with clsx
  *
- * Combines clsx for conditional classes with tailwind-merge to handle
- * conflicting Tailwind classes by keeping the last occurrence.
- * This prevents issues like "p-4 p-2" where both would be applied.
+ * Combines clsx for conditional class names with tailwind-merge to resolve
+ * conflicting Tailwind utilities by keeping the last valid class.
+ * This prevents issues like "p-4 p-2" where both utilities would otherwise
+ * be present in the final className string.
  *
- * @param inputs - Array of class values (strings, conditionals, objects)
- * @returns Merged and deduplicated class string
+ * @param inputs - Class values accepted by clsx, including strings, arrays and objects
+ * @returns A merged and deduplicated className string
  */
 export const cn = (...inputs: ClassValue[]) => {
   return twMerge(clsx(inputs));
 };
 
 /**
- * Traverses the DOM tree upward to find the first non-transparent background color
+ * Traverses the DOM tree upward to find the first visible background color
  *
- * This function walks up the element hierarchy starting from the given element,
- * checking each parent's computed backgroundColor style until it finds a visible
- * (non-transparent) background color. This is useful for automatically detecting
- * the effective background behind an element for gradient overlays.
+ * Gradient overlays need a color that matches the surface behind the marquee.
+ * The root element itself may be transparent, so this function walks through
+ * parents until it finds a non-transparent computed background color.
  *
- * The traversal stops at the first element with a visible background color,
- * which could be the element itself or any of its ancestors up to the document root.
- *
- * @param el - The HTMLElement to start the background color search from
- * @returns The first non-transparent background color found in the hierarchy,
- *          or "transparent" if no visible background is found
- *
- * @example
- * // Element with white parent background
- * const color = getEffectiveBackgroundColor(marqueeElement);
- * // Returns: "rgb(255, 255, 255)" or "#ffffff"
- *
- * @example
- * // Element with no background set anywhere in hierarchy
- * const color = getEffectiveBackgroundColor(marqueeElement);
- * // Returns: "transparent"
+ * @param el - Element where the background color search starts
+ * @returns The first visible background color found, or "transparent" as fallback
  */
 export const getEffectiveBackgroundColor = (el: HTMLElement): string => {
   let current: HTMLElement | null = el;
 
   while (current) {
-    const bg = window.getComputedStyle(current).backgroundColor;
+    const backgroundColor = window.getComputedStyle(current).backgroundColor;
 
-    // Check if background color is visible (not transparent or rgba(0,0,0,0))
-    if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
-      return bg;
+    if (
+      backgroundColor &&
+      backgroundColor !== "rgba(0, 0, 0, 0)" &&
+      backgroundColor !== "transparent"
+    ) {
+      return backgroundColor;
     }
 
     current = current.parentElement;
   }
 
-  return "transparent"; // fallback when no visible background is found
+  return "transparent";
 };
 
 /**
- * Sets up container styles for the marquee
+ * Applies the base layout styles required by the marquee animation
  *
- * This function handles the styling requirements for different marquee orientations:
+ * GSAP sets these values inline so the runtime layout matches the current
+ * props even when direction or spacing changes. Vertical marquees need a
+ * column flow and visible child overflow, while horizontal marquees use the
+ * default row flow and hidden child overflow.
  *
- * 1. **Basic Setup**: Applies gap spacing
- * 2. **Vertical Mode**: Uses flex-direction: column for up/down movement
- * 3. **Horizontal Mode**: Uses default flex-direction: row for left/right movement
- *
- * @param containerMarquee - The main container element that holds all marquee instances
- * @param marquees - Array of individual marquee wrapper elements
- * @param marqueesChildren - Array of content container elements within each marquee
- * @param isVertical - Boolean indicating if marquee moves up/down instead of left/right
- * @param props - Configuration object containing spacing options
+ * @param containerElement - Root marquee container
+ * @param marqueeElements - Repeated marquee wrapper elements
+ * @param contentElements - Content elements inside each marquee wrapper
+ * @param isVertical - Whether the marquee moves on the Y axis
+ * @param props - Component props used for spacing
  */
 export const setupContainerStyles = (
-  containerMarquee: HTMLElement,
-  marquees: HTMLElement[],
-  marqueesChildren: HTMLElement[],
+  containerElement: HTMLElement,
+  marqueeElements: HTMLElement[],
+  contentElements: HTMLElement[],
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ) => {
   const { spacing = 16 } = props;
 
-  /**
-   * Apply base container styling
-   * - gap: Space between marquee elements (prevents content overlap)
-   * - flexDirection: column for vertical, row for horizontal
-   */
-  gsap.set(containerMarquee, {
+  gsap.set(containerElement, {
     gap: `${spacing}px`,
     flexDirection: isVertical ? "column" : "row",
   });
 
-  gsap.set(marquees, {
+  gsap.set(marqueeElements, {
     gap: `${spacing}px`,
   });
 
-  /**
-   * Handle vertical marquee specific adjustments
-   * When isVertical is true, we use flex-direction: column
-   */
-  if (isVertical) {
-    gsap.set(marqueesChildren, {
-      overflow: "visible", // Prevents clipping during animation
-    });
-  }
+  gsap.set(contentElements, {
+    overflow: isVertical ? "visible" : "hidden",
+  });
 };
 
 /**
- * Checks if an element has an explicitly defined width
+ * Checks whether an element has a reliable fixed dimension
  *
- * Verifies if the element has a fixed width through:
- * - Inline CSS style
- * - CSS classes that define width
- * - Computed CSS properties that are not 'auto'
+ * A marquee inside a content-sized container can recursively expand while we
+ * add duplicates. This helper distinguishes real dimensions from values that
+ * depend on content, such as auto, fit-content, min-content and max-content.
  *
- * @param element - The HTML element to check
- * @returns true if it has a defined width, false otherwise
+ * @param element - Element to inspect
+ * @param dimension - CSS dimension to check, either width or height
+ * @returns true when the element can be measured directly
  */
-export const hasDefinedWidth = (element: HTMLElement): boolean => {
-  // Check for inline width
-  if (element.style.width && element.style.width !== "auto") {
-    return true;
+const hasDefinedDimension = (
+  element: HTMLElement,
+  dimension: "width" | "height"
+): boolean => {
+  const inlineValue = element.style[dimension];
+
+  if (inlineValue) {
+    return !CONTENT_SIZED_DIMENSIONS.has(inlineValue);
   }
 
-  // Check computed styles
-  const computedStyle = window.getComputedStyle(element);
-  const width = computedStyle.width;
+  const computedValue = window.getComputedStyle(element)[dimension];
 
-  // If width is 'auto' or undefined, container adapts to content
-  if (width === "auto" || !width) {
+  if (CONTENT_SIZED_DIMENSIONS.has(computedValue)) {
     return false;
   }
 
-  // Check if parent has dimensions that might influence this element
   const parent = element.parentElement;
-  if (parent) {
-    const parentStyle = window.getComputedStyle(parent);
-    // If parent has auto width and this element has 100% width,
-    // then this element will also adapt to content
-    if (width === "100%" && parentStyle.width === "auto") {
-      return false;
-    }
-  }
+  if (!parent) return true;
 
-  return true;
+  const parentValue = window.getComputedStyle(parent)[dimension];
+  return !(
+    computedValue === "100%" && CONTENT_SIZED_DIMENSIONS.has(parentValue)
+  );
 };
 
 /**
- * Calculates the appropriate width reference for duplicate calculations
+ * Public width-specific wrapper kept for consumers that import this utility
  *
- * Intelligent strategy:
- * 1. If container has a defined width → use that
- * 2. If container adapts to content → use viewport to avoid recursive loops
- * 3. Always adds a safety margin to prevent edge cases
- *
- * @param containerElement - The marquee container element
- * @param isVertical - Whether the marquee is vertical
- * @returns The reference width to use for calculations
+ * @param element - Element to inspect
+ * @returns true when the element has a reliable width
  */
-export const getTargetWidth = (
+export const hasDefinedWidth = (element: HTMLElement): boolean => {
+  return hasDefinedDimension(element, "width");
+};
+
+/**
+ * Calculates the reference size used to decide how many clones are needed
+ *
+ * Strategy:
+ * 1. If the container has a reliable size, use that measured size.
+ * 2. If the container adapts to content, use the viewport as a stable fallback.
+ *
+ * The viewport fallback prevents recursive expansion in layouts where the
+ * container grows as duplicated children are added.
+ *
+ * @param containerElement - Root marquee container
+ * @param isVertical - Whether the marquee should measure height instead of width
+ * @returns A stable target size for duplicate calculations
+ */
+export const getTargetSize = (
   containerElement: HTMLElement,
   isVertical: boolean
 ): number => {
-  if (hasDefinedWidth(containerElement)) {
-    // Container has a fixed width, we can use it safely
+  const dimension = isVertical ? "height" : "width";
+
+  if (hasDefinedDimension(containerElement, dimension)) {
     return isVertical
       ? containerElement.offsetHeight
       : containerElement.offsetWidth;
-  } else {
-    // Container adapts to content, use viewport to avoid loops
-    console.info(
-      "GSAPReactMarquee: Container has no defined width, using viewport as reference to prevent recursive expansion"
-    );
-    return isVertical ? window.innerHeight : window.innerWidth;
   }
+
+  return isVertical ? window.innerHeight : window.innerWidth;
 };
 
+export const getTargetWidth = getTargetSize;
+
 /**
- * Calculates the number of content duplicates needed for seamless looping
+ * Calculates how many cloned items should be rendered
  *
- * For smooth infinite scrolling, we need enough content copies to fill the visible area
- * plus buffer space. This prevents gaps when content loops back to the beginning.
+ * The component always renders the original item. This function returns the
+ * number of additional clones needed. In fill mode, short content is repeated
+ * until the measured target area is covered. The count is capped to avoid
+ * excessive DOM growth when content is extremely small or measurements are odd.
  *
- * Algorithm:
- * 1. If not in fill mode, only one copy is needed (content already spans container)
- * 2. Determine target width (viewport height for vertical, container width for horizontal)
- * 3. Calculate how many copies fit in the target space, rounding up for complete coverage
- *
- * @param marqueeChildrenWidth - Width of a single content instance
- * @param containerMarqueeWidth - Width of the marquee container
- * @param isVertical - Whether the marquee scrolls vertically
- * @param props - Configuration object containing fill mode setting
- * @returns Number of content duplicates needed (minimum 1)
+ * @param contentSize - Width or height of one content item
+ * @param targetSize - Width or height that should be covered
+ * @param props - Component props, specifically fill mode
+ * @returns Number of cloned marquee items to render
  */
-export const calculateDuplicates = (
-  marqueeChildrenWidth: number,
-  containerMarqueeWidth: number,
+export const calculateDuplicateCount = (
+  contentSize: number,
+  targetSize: number,
   props: GSAPReactMarqueeProps
 ): number => {
-  // If not filling, content presumably already spans the container
-  if (!props.fill) return 1;
+  const { fill = false } = props;
 
-  /**
-   * Calculate required duplicates
-   * Math.ceil ensures we have enough copies to fully cover the target width
-   * Even if the last copy is partially visible, it prevents gaps during looping
-   */
-  return marqueeChildrenWidth < containerMarqueeWidth
-    ? Math.ceil(containerMarqueeWidth / marqueeChildrenWidth)
-    : 1; // If content is already larger than target, one copy suffices
+  if (!fill || contentSize <= 0 || targetSize <= 0) return 1;
+
+  const duplicateCount =
+    contentSize < targetSize ? Math.ceil(targetSize / contentSize) : 1;
+
+  return Math.min(duplicateCount, MAX_DUPLICATES);
 };
 
+export const calculateDuplicates = calculateDuplicateCount;
+
 /**
- * Determines the minimum width/height for marquee elements based on content and container
+ * Determines the minimum size assigned to each marquee wrapper
  *
- * This function ensures marquee elements have appropriate dimensions for their content
- * and container context, handling different modes and orientations.
+ * Normal mode stretches undersized content so the two wrapper items can fill
+ * the container cleanly. Oversized content keeps its measured size so the
+ * animation distance matches the real track. Fill mode uses auto sizing because
+ * the repeated content elements themselves define the track length.
  *
- * Dimension determination logic:
- * 1. **Fill mode**: Auto size lets content size naturally
- * 2. **Undersized content**: Stretch to 100% to fill container
- * 3. **Oversized content**: Use actual content size for overflow scrolling
- *
- * @param marqueesChildren - Array of content elements for dimension measurement
- * @param totalSize - Combined width/height of all content elements
- * @param containerSize - Available container width/height
- * @param isVertical - Whether the marquee is vertical
- * @param props - Configuration object containing fill settings
- * @returns CSS size value (string with units or number for pixels)
+ * @param itemSize - Measured width or height for one marquee item
+ * @param containerSize - Available width or height of the root container
+ * @param props - Component props, specifically fill mode
+ * @returns CSS min-width/min-height value
  */
-export const getMinWidth = (
-  totalSize: number,
+export const getMinSize = (
+  itemSize: number,
   containerSize: number,
   props: GSAPReactMarqueeProps
 ): string | number => {
   const { fill = false } = props;
 
-  // Fill mode: Let content size itself naturally
   if (fill) return "auto";
-
-  /**
-   * Content smaller than container: Stretch to fill
-   * Prevents awkward gaps in the marquee display
-   */
-  if (totalSize < containerSize) return "100%";
-  if (totalSize > containerSize) return `${totalSize}px`;
-
-  /**
-   * Content matches container: Use container size
-   */
-  return `${containerSize}px`;
+  if (itemSize <= containerSize) return "100%";
+  return `${itemSize}px`;
 };
 
+export const getMinWidth = getMinSize;
+
 /**
- * Creates a complex marquee animation with seamless looping and draggable support
+ * Creates the GSAP timeline segments that make the marquee loop continuously
  *
- * This is the core animation engine that creates smooth, continuous scrolling.
- * It handles the complex math required for seamless looping by calculating
- * precise positions and durations for each content element.
+ * Each item gets two timeline segments:
+ * 1. Move from its current position to the loop boundary.
+ * 2. Re-enter from the end of the track back to its original position.
  *
- * Animation Strategy:
- * 1. **Position Calculation**: Convert pixel positions to percentages for responsive scaling
- * 2. **Seamless Looping**: Calculate track length and loop points to prevent gaps
- * 3. **Staggered Animation**: Each element starts at different times for smooth flow
- * 4. **Direction Handling**: Support forward and reverse directions with proper timing
- * 5. **Integrated Draggable**: Optional support for drag interaction with manual control
+ * Positions are converted to xPercent/yPercent so the animation remains stable
+ * when item sizes change after measurement. Optional draggable support maps
+ * pointer movement to timeline progress through a hidden proxy element.
  *
- * Technical Details:
- * - Uses xPercent/yPercent for percentage-based positioning (responsive to element size changes)
- * - Creates two-part animation: main movement + seamless loop reset
- * - Calculates precise durations based on distance and speed for consistent motion
- * - Implements draggable with intelligent pause/resume animation handling
- *
- * @param elementsToAnimate - Array of DOM elements to animate (content or containers)
- * @param startPos - Starting position reference point (X or Y based on orientation)
- * @param tl - GSAP timeline to add animations to
- * @param isReverse - Whether animation should play in reverse direction
- * @param draggableTrigger - Element(s) that will trigger the draggable functionality
- * @param isVertical - Whether the marquee scrolls vertically
- * @param props - Configuration object with spacing, speed, delay, and other settings
+ * @param items - DOM elements that should move in the timeline
+ * @param startPosition - Initial X/Y offset of the first content item
+ * @param timeline - GSAP timeline that receives all animation segments
+ * @param isReverse - Whether the marquee moves right/down instead of left/up
+ * @param dragTrigger - Visible elements that should start drag interactions
+ * @param isVertical - Whether the animation uses Y axis properties
+ * @param props - Component props used for spacing, speed, delay and dragging
+ * @returns Cleanup function for delayed calls, Draggable and proxy DOM nodes
  */
-export const coreAnimation = (
-  elementsToAnimate: HTMLElement[],
-  startPos: number,
-  tl: gsap.core.Timeline,
+export const createMarqueeAnimation = (
+  items: HTMLElement[],
+  startPosition: number,
+  timeline: GSAPTimeline,
   isReverse: boolean,
-  draggableTrigger: HTMLElement | HTMLElement[],
+  dragTrigger: HTMLElement | HTMLElement[],
   isVertical: boolean,
   props: GSAPReactMarqueeProps
-): void => {
-  const { spacing = 16, speed = 100, delay = 0, paused = false } = props;
+): (() => void) | undefined => {
+  const {
+    spacing = 16,
+    speed = 100,
+    delay = 0,
+    paused = false,
+    draggable = false,
+  } = props;
 
-  // Arrays to store calculated values for each element
-  const sizes: number[] = []; // Element widths/heights in pixels
-  const percents: number[] = []; // Current positions as percentages
-  const latestPos = elementsToAnimate.length - 1; // Index of last element
+  const lastIndex = items.length - 1;
+  if (lastIndex < 0) return;
 
-  // Determine which properties to use based on orientation
-  const percentProp = isVertical ? "yPercent" : "xPercent";
-  const posProp = isVertical ? "y" : "x";
-  const sizeProp = isVertical ? "height" : "width";
+  const itemSizes: number[] = [];
+  const initialPercents: number[] = [];
+  const percentProperty = isVertical ? "yPercent" : "xPercent";
+  const positionProperty = isVertical ? "y" : "x";
+  const sizeProperty = isVertical ? "height" : "width";
 
   /**
-   * Initialize positions and calculate percentage values
-   *
-   * GSAP's xPercent/yPercent property positions elements relative to their own size:
-   * - 0% = element's edge at current position
-   * - -100% = element's opposite edge at current position
-   * - 100% = element positioned one full size forward
-   *
-   * This approach makes animations responsive to size changes
+   * Capture each item's current pixel offset and convert it to a percent offset.
+   * GSAP can animate percentage transforms more robustly across responsive sizes.
    */
-  gsap.set(elementsToAnimate, {
-    [percentProp]: (i: number, el: HTMLElement) => {
-      // Get element size and store for later calculations
-      const size = (sizes[i] = parseFloat(
-        String(gsap.getProperty(el, sizeProp, "px"))
-      ));
+  gsap.set(items, {
+    [percentProperty]: (index: number, item: HTMLElement) => {
+      const itemSize = parseFloat(
+        String(gsap.getProperty(item, sizeProperty, "px"))
+      );
+      const pixelOffset = parseFloat(
+        String(gsap.getProperty(item, positionProperty, "px"))
+      );
+      const percentOffset = Number(gsap.getProperty(item, percentProperty));
 
-      /**
-       * Calculate current position as percentage of element size
-       * Combines pixel position with any existing percentage offset
-       */
-      percents[i] =
-        (parseFloat(String(gsap.getProperty(el, posProp, "px"))) / size) * 100 +
-        Number(gsap.getProperty(el, percentProp));
+      itemSizes[index] = itemSize;
+      initialPercents[index] = (pixelOffset / itemSize) * 100 + percentOffset;
 
-      return percents[i];
+      return initialPercents[index];
     },
   });
 
-  // Reset position to 0 since we're now using percent for positioning
-  gsap.set(elementsToAnimate, { [posProp]: 0 });
+  gsap.set(items, { [positionProperty]: 0 });
 
   /**
-   * Calculate total track length for seamless looping
-   *
-   * Track length is the total distance content travels before looping back.
-   * It includes:
-   * - Distance from start to last element's edge
-   * - Last element's offset percentage in pixels
-   * - Last element's full size
-   * - Spacing gap after last element
-   *
-   * This ensures smooth transitions when content loops back to beginning
+   * Track length is the full distance an item travels before it can wrap back.
+   * It includes the last item's offset, its own size and the configured spacing.
    */
-  const lastElement = elementsToAnimate[latestPos];
-  const lastOffset = isVertical
-    ? lastElement.offsetTop
-    : lastElement.offsetLeft;
-  const lastSize = isVertical
-    ? lastElement.offsetHeight
-    : lastElement.offsetWidth;
-
+  const lastItem = items[lastIndex];
+  const lastOffset = isVertical ? lastItem.offsetTop : lastItem.offsetLeft;
+  const lastSize = isVertical ? lastItem.offsetHeight : lastItem.offsetWidth;
   const trackLength =
     lastOffset +
-    (percents[latestPos] / 100) * sizes[latestPos] -
-    startPos +
+    (initialPercents[lastIndex] / 100) * itemSizes[lastIndex] -
+    startPosition +
     lastSize +
     spacing;
 
-  /**
-   * Create staggered animation for each element
-   *
-   * Each element gets a two-part animation:
-   * 1. Main movement: From start position to loop point
-   * 2. Reset movement: From end of track back to start (seamless loop)
-   */
-  elementsToAnimate.forEach((item, i) => {
-    // Current position in pixels
-    const curPos = (percents[i] / 100) * sizes[i];
-
-    // Distance from element to animation start point
-    const elementOffset = isVertical ? item.offsetTop : item.offsetLeft;
-    const distanceToStart = elementOffset + curPos - startPos;
+  items.forEach((item, index) => {
+    const itemSize = itemSizes[index];
+    const currentPosition = (initialPercents[index] / 100) * itemSize;
+    const itemOffset = isVertical ? item.offsetTop : item.offsetLeft;
+    const distanceToStart = itemOffset + currentPosition - startPosition;
+    const distanceToLoop = distanceToStart + itemSize;
 
     /**
-     * Calculate distance to complete loop point
+     * First segment moves the item out of view. Second segment starts it at the
+     * far end of the track and returns it to its original percent position.
      */
-    const distanceToLoop = distanceToStart + sizes[i];
-
-    /**
-     * Part 1: Main animation - move from current position to loop point
-     *
-     * - Target: Position where element should loop back
-     * - Duration: Based on distance and speed for consistent motion
-     * - Start time: 0 (all elements start simultaneously but from different positions)
-     */
-    tl.to(
-      item,
-      {
-        [percentProp]: ((curPos - distanceToLoop) / sizes[i]) * 100,
-        duration: distanceToLoop / speed,
-      },
-      0 // Start immediately
-    ).fromTo(
-      item,
-      {
-        /**
-         * Part 2 Start: Position element at end of track
-         * This creates the illusion of seamless continuation
-         */
-        [percentProp]:
-          ((curPos - distanceToLoop + trackLength) / sizes[i]) * 100,
-      },
-      {
-        /**
-         * Part 2 End: Move back to original start position
-         * Completes the seamless loop cycle
-         */
-        [percentProp]: percents[i],
-        duration: (curPos - distanceToLoop + trackLength - curPos) / speed,
-        immediateRender: false, // Don't render start position immediately
-      },
-      distanceToLoop / speed // Start after main animation completes
-    );
+    timeline
+      .to(
+        item,
+        {
+          [percentProperty]:
+            ((currentPosition - distanceToLoop) / itemSize) * 100,
+          duration: distanceToLoop / speed,
+        },
+        0
+      )
+      .fromTo(
+        item,
+        {
+          [percentProperty]:
+            ((currentPosition - distanceToLoop + trackLength) / itemSize) * 100,
+        },
+        {
+          [percentProperty]: initialPercents[index],
+          duration: (trackLength - distanceToLoop) / speed,
+          immediateRender: false,
+        },
+        distanceToLoop / speed
+      );
   });
 
-  // Apply initial delay before starting animations
-  tl.delay(delay);
+  timeline.delay(delay);
 
-  /**
-   * Handle reverse direction animations
-   *
-   * For reverse marquees (right/down directions):
-   * 1. Set timeline to end position
-   * 2. Pause to prevent immediate playback
-   * 3. Use delayed call to start reverse playback after initial delay
-   * 4. Set up reverse completion handler for continuous looping
-   */
+  let reverseDelayTween: gsap.core.Tween | undefined;
+  let throwDelayTween: gsap.core.Tween | undefined;
+  let draggableInstance: ReturnType<typeof Draggable.create>[number] | undefined;
+  let dragProxyElement: HTMLElement | undefined;
+
+  // GSAP reverse timelines need their totalTime pushed forward to repeat continuously.
+  const keepReverseLooping = () => {
+    timeline.eventCallback("onReverseComplete", () => {
+      timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
+    });
+  };
+
+  const playReverseAfterDelay = () => {
+    return gsap.delayedCall(delay, () => {
+      timeline.reverse();
+      keepReverseLooping();
+    });
+  };
+
   if (isReverse) {
-    // If paused is requested, just pause and return
     if (paused) {
-      tl.pause();
-      return;
+      timeline.pause();
+      return undefined;
     }
 
-    // Position timeline at end and pause
-    tl.progress(1).pause();
-
-    /**
-     * Start reverse playback after delay
-     * This creates the proper reverse scrolling effect
-     */
-    gsap.delayedCall(delay, () => {
-      tl.reverse(); // Start playing backwards
-
-      /**
-       * Handle seamless looping in reverse direction
-       * When reverse completes, restart from end position
-       * This prevents new delay in continuous reverse scrolling
-       */
-      tl.eventCallback("onReverseComplete", () => {
-        tl.totalTime(tl.rawTime() + tl.duration() * 100);
-      });
-    });
+    timeline.progress(1).pause();
+    reverseDelayTween = playReverseAfterDelay();
   }
 
-  /**
-   * ========================================
-   * DRAGGABLE SECTION
-   * ========================================
-   *
-   * Implements interactive drag functionality for manual marquee control.
-   * When enabled, allows users to drag horizontally to control the animation
-   * position in real-time.
-   */
+  if (typeof Draggable === "function" && draggable) {
+    /**
+     * Draggable needs a mutable proxy element to store drag coordinates.
+     * The proxy is never shown; the visible marquee elements remain the trigger.
+     */
+    const dragProxy = document.createElement("div");
+    dragProxyElement = dragProxy;
 
-  // Essential variables for draggable functionality
-  let proxy: HTMLElement;
-
-  if (typeof Draggable === "function" && props.draggable) {
-    // Create an invisible proxy element to handle drag calculations
-    proxy = document.createElement("div");
-    const wrap = gsap.utils.wrap(0, 1); // Wrapping function to keep values between 0 and 1
-    let ratio: number; // Ratio to convert drag position to timeline progress
-    let startProgress: number; // Timeline progress at drag start
+    const wrapProgress = gsap.utils.wrap(0, 1);
+    let dragRatio: number;
+    let dragStartProgress: number;
 
     /**
-     * Alignment function that syncs drag position with timeline progress
-     * Converts mouse movement into animation progress
+     * Converts drag distance into timeline progress. The wrap function keeps the
+     * result between 0 and 1 so users can drag through loop boundaries smoothly.
      */
-    const align = () => {
-      const axis = isVertical
-        ? draggable.startY - draggable.y
-        : draggable.startX - draggable.x;
-      tl.progress(wrap(startProgress + axis * ratio));
+    const syncTimelineToDrag = () => {
+      if (!draggableInstance) return;
+
+      const dragDelta = isVertical
+        ? draggableInstance.startY - draggableInstance.y
+        : draggableInstance.startX - draggableInstance.x;
+
+      timeline.progress(
+        wrapProgress(dragStartProgress + dragDelta * dragRatio)
+      );
     };
 
-    // Check InertiaPlugin availability for momentum scrolling
     if (typeof InertiaPlugin === "undefined") {
       console.warn(
         "InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club"
       );
     }
 
-    const draggable = Draggable.create(proxy, {
-      trigger: draggableTrigger, // Element that will trigger the drag
+    draggableInstance = Draggable.create(dragProxy, {
+      trigger: dragTrigger,
       type: isVertical ? "y" : "x",
       onPress() {
-        // Initialization on click/touch
-        gsap.killTweensOf(tl); // Stop any ongoing animations on timeline
-        tl.pause(); // Pause main animation
-        startProgress = tl.progress(); // Store current progress
-        ratio = 1 / trackLength; // Calculate drag/progress ratio
-        gsap.set(proxy, { [posProp]: startProgress / -ratio }); // Position the proxy
+        /**
+         * Store the current timeline progress before dragging starts.
+         * The proxy position is aligned to that progress so Draggable deltas map
+         * back to the same timeline point without a visible jump.
+         */
+        gsap.killTweensOf(timeline);
+        timeline.pause();
+        dragStartProgress = timeline.progress();
+        dragRatio = 1 / trackLength;
+        gsap.set(dragProxy, {
+          [positionProperty]: dragStartProgress / -dragRatio,
+        });
       },
-      onDrag: align, // Call align during drag
-      onThrowUpdate: align, // Call align during inertia
-      overshootTolerance: 0, // No overshoot tolerance
-      inertia: true, // Enable momentum scrolling
-      onThrowComplete: () => {
-        // Handle inertia completion
-        if (isReverse) {
-          // If paused is requested, stop and return
-          if (paused) {
-            tl.pause();
-            return;
-          }
-
-          // Position timeline at correct position and pause
-          tl.progress(tl.progress()).pause();
-
-          /**
-           * Start reverse playback after delay
-           * This creates the proper reverse scrolling effect
-           */
-          gsap.delayedCall(delay, () => {
-            tl.reverse(); // Start playing backwards
-
-            /**
-             * Handle seamless looping in reverse direction
-             * When reverse completes, restart from end position
-             * This prevents new delay in continuous reverse scrolling
-             */
-            tl.eventCallback("onReverseComplete", () => {
-              tl.totalTime(tl.rawTime() + tl.duration() * 100);
-            });
-          });
-        } else {
-          // For normal direction, simply resume the animation
-          tl.play();
+      onDrag: syncTimelineToDrag,
+      onThrowUpdate: syncTimelineToDrag,
+      overshootTolerance: 0,
+      inertia: true,
+      onThrowComplete() {
+        if (!isReverse) {
+          timeline.play();
+          return;
         }
+
+        if (paused) {
+          timeline.pause();
+          return;
+        }
+
+        timeline.progress(timeline.progress()).pause();
+        throwDelayTween?.kill();
+        throwDelayTween = playReverseAfterDelay();
       },
     })[0];
   }
+
+  return () => {
+    reverseDelayTween?.kill();
+    throwDelayTween?.kill();
+    draggableInstance?.kill();
+    dragProxyElement?.remove();
+  };
 };
+
+export const coreAnimation = createMarqueeAnimation;
