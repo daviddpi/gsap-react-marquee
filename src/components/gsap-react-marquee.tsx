@@ -185,6 +185,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         let scrollObserver: Observer | null = null;
 
         const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
+        const usesContentTrack = fill || isVertical;
 
         /**
          * Duplicate count affects rendered DOM. When the measured count changes,
@@ -194,7 +195,10 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         const nextDuplicateCount = calculateDuplicateCount(
           contentSize,
           targetSize,
-          animationProps
+          {
+            ...animationProps,
+            fill: usesContentTrack,
+          }
         );
         if (duplicateCount !== nextDuplicateCount) {
           setDuplicateCount(nextDuplicateCount);
@@ -221,29 +225,28 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           .reduce((a, b) => a + b, 0);
 
         /**
-         * In normal mode there is one original item and one clone, so half the
-         * track represents one logical item. Fill mode uses auto sizing because
-         * the cloned content itself defines the track.
+         * Horizontal normal mode stretches undersized content across the
+         * viewport. Fill mode and all vertical marquees use auto sizing because
+         * the repeated content defines the track.
          */
-        const minSizeValue = getMinSize(
-          fill ? 0 : totalTrackSize / 2,
-          containerSize,
-          animationProps
-        );
+        const minSizeValue = usesContentTrack
+          ? "auto"
+          : getMinSize(totalTrackSize / 2, containerSize, animationProps);
 
         gsap.set(marqueeElements, {
           [isVertical ? "minHeight" : "minWidth"]: minSizeValue,
-          flex: fill ? "0 0 auto" : "1",
+          flex: usesContentTrack ? "0 0 auto" : "1",
         });
 
         const cleanupMarqueeAnimation = createMarqueeAnimation(
-          fill ? contentElements : marqueeElements,
+          usesContentTrack ? contentElements : marqueeElements,
           startPosition,
           timeline,
           isReverse,
           marqueeElements,
           isVertical,
-          animationProps
+          animationProps,
+          containerElement
         );
 
         if (scrollFollow) {

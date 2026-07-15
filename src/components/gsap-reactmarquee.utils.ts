@@ -18,6 +18,31 @@ const MAX_DUPLICATES = 15;
 
 type GSAPTimeline = ReturnType<typeof gsap.timeline>;
 
+const getRelativeOffset = (
+  item: HTMLElement,
+  container: HTMLElement,
+  isVertical: boolean
+): number => {
+  let offset = 0;
+  let current: HTMLElement | null = item;
+
+  while (current && current !== container) {
+    offset += isVertical ? current.offsetTop : current.offsetLeft;
+    current = current.offsetParent as HTMLElement | null;
+  }
+
+  if (current === container) {
+    return offset;
+  }
+
+  const itemRect = item.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+
+  return isVertical
+    ? itemRect.top - containerRect.top
+    : itemRect.left - containerRect.left;
+};
+
 /**
  * Utility function to merge Tailwind classes with clsx
  *
@@ -96,6 +121,7 @@ export const setupContainerStyles = (
   });
 
   gsap.set(contentElements, {
+    flexDirection: isVertical ? "column" : "row",
     overflow: isVertical ? "visible" : "hidden",
   });
 };
@@ -261,7 +287,8 @@ export const createMarqueeAnimation = (
   isReverse: boolean,
   dragTrigger: HTMLElement | HTMLElement[],
   isVertical: boolean,
-  props: GSAPReactMarqueeProps
+  props: GSAPReactMarqueeProps,
+  offsetContainer?: HTMLElement
 ): (() => void) | undefined => {
   const {
     spacing = 16,
@@ -279,6 +306,13 @@ export const createMarqueeAnimation = (
   const percentProperty = isVertical ? "yPercent" : "xPercent";
   const positionProperty = isVertical ? "y" : "x";
   const sizeProperty = isVertical ? "height" : "width";
+  const getItemOffset = (item: HTMLElement) =>
+    offsetContainer
+      ? getRelativeOffset(item, offsetContainer, isVertical)
+      : isVertical
+        ? item.offsetTop
+        : item.offsetLeft;
+  const itemOffsets = items.map(getItemOffset);
 
   /**
    * Capture each item's current pixel offset and convert it to a percent offset.
@@ -308,20 +342,24 @@ export const createMarqueeAnimation = (
    * It includes the last item's offset, its own size and the configured spacing.
    */
   const lastItem = items[lastIndex];
-  const lastOffset = isVertical ? lastItem.offsetTop : lastItem.offsetLeft;
+  const lastOffset = itemOffsets[lastIndex];
   const lastSize = isVertical ? lastItem.offsetHeight : lastItem.offsetWidth;
+  const effectiveStartPosition = offsetContainer
+    ? itemOffsets[0]
+    : startPosition;
   const trackLength =
     lastOffset +
     (initialPercents[lastIndex] / 100) * itemSizes[lastIndex] -
-    startPosition +
+    effectiveStartPosition +
     lastSize +
     spacing;
 
   items.forEach((item, index) => {
     const itemSize = itemSizes[index];
     const currentPosition = (initialPercents[index] / 100) * itemSize;
-    const itemOffset = isVertical ? item.offsetTop : item.offsetLeft;
-    const distanceToStart = itemOffset + currentPosition - startPosition;
+    const itemOffset = itemOffsets[index];
+    const distanceToStart =
+      itemOffset + currentPosition - effectiveStartPosition;
     const distanceToLoop = distanceToStart + itemSize;
 
     /**
