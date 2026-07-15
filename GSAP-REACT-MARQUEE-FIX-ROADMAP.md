@@ -201,6 +201,47 @@ Required flow:
    milestone branch.
 8. Repeat until M6 is merged and the final release gate passes.
 
+### Consumer-Project Validation Before Every Merge
+
+Before merging any milestone branch into `release/0.4.0`, the agent must make
+the milestone available as a package and the user must verify its behavior in a
+real consumer React project. Unit, browser, typecheck, and build checks are not
+enough to replace this validation.
+
+Required sequence on the milestone branch:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run build
+pnpm pack --pack-destination ../gsap-marquee-artifacts
+```
+
+Install the generated `.tgz` in the consumer project:
+
+```bash
+pnpm remove gsap-react-marquee
+pnpm add ../gsap-marquee-artifacts/gsap-react-marquee-<version>.tgz
+pnpm dev
+```
+
+The user must verify the behavior changed by the active milestone in the real
+application, including relevant interactions, layout, SSR/build behavior, and
+the confirmed product decisions (`paused` is controlled and `fill` is
+independent from direction). The agent must provide a short manual-test
+checklist tailored to the milestone and record the result in the handoff.
+
+Merge is blocked until all of the following are true:
+
+- [ ] The package `.tgz` installs successfully in the consumer project.
+- [ ] The user has manually verified the milestone behavior in that project.
+- [ ] No regression is observed in the consumer project.
+- [ ] The user has explicitly confirmed the milestone is ready to merge.
+
+`pnpm link` may be used for exploratory development, but the packed `.tgz` is
+the required pre-merge validation artifact because it exercises package exports,
+dependencies, generated files, and CSS more realistically.
+
 Branch rules:
 
 - [ ] No direct implementation commits on `release/0.4.0`.
