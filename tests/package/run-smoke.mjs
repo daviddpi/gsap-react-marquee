@@ -40,6 +40,30 @@ assert.doesNotMatch(
   /gsap\/all\.js/,
   "the package must use direct GSAP plugin modules"
 );
+assert.match(
+  esmSource,
+  /gsap-react-marquee-styles/,
+  "the browser bundle must contain the guarded CSS injector"
+);
+
+const declarationSource = readFileSync(
+  resolve(repositoryRoot, packageJson.types),
+  "utf8"
+);
+for (const prop of [
+  "containerClassName",
+  "containerStyle",
+  "containerProps",
+  "maxDuplicates",
+  "paused",
+  "respectReducedMotion",
+]) {
+  assert.match(
+    declarationSource,
+    new RegExp(`\\b${prop}\\??:`),
+    `generated declarations must contain ${prop}`
+  );
+}
 
 const esmExports = await import("gsap-react-marquee");
 const cjsExports = require("gsap-react-marquee");
@@ -94,4 +118,6 @@ if (typecheck.status !== 0) {
   process.exit(typecheck.status ?? 1);
 }
 
-console.log("Package smoke tests passed: ESM, CJS, types, SSR, dist files");
+console.log(
+  "Package smoke tests passed: ESM, CJS, types, SSR, CSS guard, dist files"
+);

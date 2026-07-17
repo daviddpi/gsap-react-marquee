@@ -8,6 +8,49 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-17
+
+### Fixes
+
+- Stabilized numeric normalization, zero-size initialization, vertical sizing,
+  fill coverage, finite/reverse loops, controlled pause, drag release, scroll
+  response, resize convergence, and vertical clone entry geometry.
+
+### Accessibility
+
+- Added reduced-motion static rendering, semantic single-original SSR output,
+  inaccessible visual clones, native-`inert` handling, Safari fallback focus
+  isolation, root ARIA/data/event props, and presentational-child diagnostics.
+
+### Performance
+
+- Prevented equivalent parent rerenders from rebuilding animation resources,
+  cached optional plugin imports, removed default `tailwind-merge` execution,
+  and reduced initial and interactive consumer bundle sizes with enforced
+  budgets.
+
+### Dependencies
+
+- Upgraded Rollup to `4.62.2` and the supported Rollup plugin set, including
+  `@rollup/plugin-terser` `1.0.0` and `rollup-plugin-dts` `6.4.1`.
+- Replaced the unmaintained `rollup-plugin-postcss` chain with a local,
+  SSR-safe CSS injector compiled by `lightningcss` `1.32.0`.
+- Upgraded Vite, Vitest, jsdom, and the React 19 development runtime to secure
+  current versions; pinned `pnpm@10.34.5` for Node 20/22 compatibility.
+- Re-queried the live advisory database on 2026-07-17. Full lockfile audit
+  reports zero known advisories; no advisory is accepted or muted.
+
+### Compatibility
+
+- Added real packed-tarball consumers for React 18/GSAP 3.12 and React 19/GSAP
+  3.13, covering ESM, CommonJS, declarations, SSR, CSS injection, Chromium
+  animation, and the exact published-file allowlist.
+- Declared Node.js 20 and 22 as the supported release matrix and Node 20 as the
+  minimum package engine.
+- Added a complete local release command covering typecheck, lint, unit,
+  Chromium, WebKit, packed artifacts, bundle budgets, dependency audit, and
+  whitespace validation.
+
 ### Added
 
 - Added the Milestone 0 verification baseline with unit, browser, and package

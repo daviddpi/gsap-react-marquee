@@ -4,7 +4,7 @@ import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import { readFileSync } from "fs";
 import dts from "rollup-plugin-dts";
-import postcss from "rollup-plugin-postcss";
+import { cssInject } from "./scripts/rollup-plugin-css-inject.js";
 
 const packageJson = JSON.parse(readFileSync("./package.json", "utf8"));
 
@@ -38,12 +38,7 @@ export default [
         declarationMap: false,
         removeComments: true,
       }),
-      postcss({
-        minimize: true,
-        inject: true,
-        sourceMap: false,
-        extract: false,
-      }),
+      cssInject(),
       terser({
         compress: {
           drop_debugger: true,

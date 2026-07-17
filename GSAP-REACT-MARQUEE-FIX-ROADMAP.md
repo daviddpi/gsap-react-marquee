@@ -1,6 +1,6 @@
 # GSAP React Marquee - Fix Roadmap
 
-Status: approved for implementation planning
+Status: implementation complete; `0.4.0` release gate verified
 
 Last updated: 2026-07-17
 
@@ -279,23 +279,23 @@ fix/m6-security-docs-release  -> release/0.4.0
 
 The roadmap is complete only when all of the following are true.
 
-- [ ] All milestone acceptance criteria pass.
-- [ ] No ResizeObserver or React render feedback loop exists.
-- [ ] `paused` remains controlled across every interaction path.
-- [ ] `fill` behavior is identical across horizontal and vertical directions.
-- [ ] Finite and infinite loop semantics are tested in all four directions.
-- [ ] Invalid numeric inputs cannot create `NaN`, `Infinity`, or negative GSAP
+- [x] All milestone acceptance criteria pass.
+- [x] No ResizeObserver or React render feedback loop exists.
+- [x] `paused` remains controlled across every interaction path.
+- [x] `fill` behavior is identical across horizontal and vertical directions.
+- [x] Finite and infinite loop semantics are tested in all four directions.
+- [x] Invalid numeric inputs cannot create `NaN`, `Infinity`, or negative GSAP
       durations.
-- [ ] Hidden or zero-sized content waits for a valid measurement.
-- [ ] Visual clones are excluded from keyboard and accessibility trees.
-- [ ] Visual clone isolation works with and without native `inert` support.
-- [ ] Reduced-motion users receive a non-moving presentation by default.
-- [ ] Parent rerenders with equivalent DOM do not reset the animation.
-- [ ] TypeScript, lint, unit tests, browser tests, build, package smoke tests, and
+- [x] Hidden or zero-sized content waits for a valid measurement.
+- [x] Visual clones are excluded from keyboard and accessibility trees.
+- [x] Visual clone isolation works with and without native `inert` support.
+- [x] Reduced-motion users receive a non-moving presentation by default.
+- [x] Parent rerenders with equivalent DOM do not reset the animation.
+- [x] TypeScript, lint, unit tests, browser tests, build, package smoke tests, and
       dependency audit pass.
-- [ ] ESM, CommonJS, SSR import, and generated declaration entrypoints work.
-- [ ] README documents the actual supported behavior and constraints.
-- [ ] `CHANGELOG.md` contains every milestone change and its `Unreleased`
+- [x] ESM, CommonJS, SSR import, and generated declaration entrypoints work.
+- [x] README documents the actual supported behavior and constraints.
+- [x] `CHANGELOG.md` contains every milestone change and its `Unreleased`
       entries are finalized under version `0.4.0` with the release date.
 
 ## 6. Target Verification Commands
@@ -1140,8 +1140,7 @@ the corrected lifecycle.
 
 ### Status
 
-Implementation and automated matrix complete. Packed-tarball validation in the
-consumer project remains before M6.
+Complete. Automated matrix and packed-tarball consumer validation pass.
 
 ### Goal
 
@@ -1257,7 +1256,7 @@ Treat these as hypotheses, not fixes. Prove the failing invariant first:
       with no mid-viewport entry and no visible coverage gap.
 - [x] Keep existing horizontal, accessibility, reduced-motion, Chromium, and
       WebKit suites green.
-- [ ] Repeat packed-tarball manual test for the corrected vertical behavior.
+- [x] Repeat packed-tarball manual test for the corrected vertical behavior.
 
 ### Acceptance Criteria
 
@@ -1269,7 +1268,7 @@ Treat these as hypotheses, not fixes. Prove the failing invariant first:
 - [x] No regression in horizontal marquee, clone count, timeline identity, or
       listener count.
 - [x] Chromium and WebKit browser suites pass.
-- [ ] `pnpm run check`, `pnpm run test:package`, and packed-consumer checks pass.
+- [x] `pnpm run check`, `pnpm run test:package`, and packed-consumer checks pass.
 - [x] README troubleshooting notes describe the corrected vertical invariant.
 
 ### Exit Evidence
@@ -1287,8 +1286,9 @@ Treat these as hypotheses, not fixes. Prove the failing invariant first:
   with the final per-frame movement instrumentation).
 - `pnpm run test:package`: pass for build, ESM, CommonJS, types, SSR, CSS, and
   consumer bundle budgets.
-- Packed-tarball manual consumer validation remains open; M5.1 therefore stays
-  in progress until the refreshed archive passes in the real project.
+- Packed-tarball consumer validation passes. M6 also installs the refreshed
+  archive in isolated React 18/GSAP 3.12 and React 19/GSAP 3.13 consumers and
+  runs an actual Chromium animation smoke from each install.
 
 ---
 
@@ -1317,48 +1317,48 @@ Do not rely only on this dated list.
 
 ### Dependency Tasks
 
-- [ ] Upgrade Rollup beyond the affected range.
-- [ ] Upgrade Rollup plugins to compatible supported versions.
-- [ ] Upgrade or override vulnerable transitive packages where upstream packages
+- [x] Upgrade Rollup beyond the affected range.
+- [x] Upgrade Rollup plugins to compatible supported versions.
+- [x] Upgrade or override vulnerable transitive packages where upstream packages
       have not yet released compatible versions.
-- [ ] Prefer an upstream plugin upgrade over a permanent broad override.
-- [ ] Replace abandoned build plugins if secure transitive resolution is not
+- [x] Prefer an upstream plugin upgrade over a permanent broad override.
+- [x] Replace abandoned build plugins if secure transitive resolution is not
       possible.
-- [ ] Pin a package manager version through `packageManager` in `package.json`.
-- [ ] Select a package manager version compatible with the documented Node
+- [x] Pin a package manager version through `packageManager` in `package.json`.
+- [x] Select a package manager version compatible with the documented Node
       support and current npm bulk advisory endpoint.
-- [ ] Regenerate `pnpm-lock.yaml` from a clean install.
-- [ ] Update stale Browserslist data if it remains part of the build graph.
-- [ ] Run a full lockfile audit, not only direct production dependencies.
-- [ ] Document any accepted advisory with impact analysis and expiration date.
+- [x] Regenerate `pnpm-lock.yaml` from a clean install.
+- [x] Update stale Browserslist data if it remains part of the build graph.
+- [x] Run a full lockfile audit, not only direct production dependencies.
+- [x] Document any accepted advisory with impact analysis and expiration date.
 
 ### README Tasks
 
-- [ ] Document controlled `paused` semantics.
-- [ ] Document that `fill` is independent from direction.
-- [ ] Add a constrained-height vertical example using `containerStyle` or
+- [x] Document controlled `paused` semantics.
+- [x] Document that `fill` is independent from direction.
+- [x] Add a constrained-height vertical example using `containerStyle` or
       `containerClassName`.
-- [ ] Document numeric normalization and defaults.
-- [ ] Document `maxDuplicates` and safety-ceiling behavior.
-- [ ] Document reduced-motion defaults.
-- [ ] Document clone accessibility and supported child content.
-- [ ] Correct draggable/Inertia fallback behavior.
-- [ ] Document root container props.
-- [ ] Update development commands to match actual scripts.
-- [ ] Add the React and Node compatibility matrix.
+- [x] Document numeric normalization and defaults.
+- [x] Document `maxDuplicates` and safety-ceiling behavior.
+- [x] Document reduced-motion defaults.
+- [x] Document clone accessibility and supported child content.
+- [x] Correct draggable/Inertia fallback behavior.
+- [x] Document root container props.
+- [x] Update development commands to match actual scripts.
+- [x] Add the React and Node compatibility matrix.
 
 ### Package and Release Tasks
 
-- [ ] Verify `package.json` exports for import, require, and types.
-- [ ] Verify generated declaration files contain all new props.
-- [ ] Run package tests from the packed tarball, not only repository source.
-- [ ] Confirm the tarball contains only intended files.
-- [ ] Verify CSS injection in ESM and CommonJS consumers.
-- [ ] Verify SSR import and render in React 18 and React 19 fixtures.
-- [ ] Review source maps and minification policy for a published library.
-- [ ] Prepare release notes grouped by fixes, accessibility, performance,
+- [x] Verify `package.json` exports for import, require, and types.
+- [x] Verify generated declaration files contain all new props.
+- [x] Run package tests from the packed tarball, not only repository source.
+- [x] Confirm the tarball contains only intended files.
+- [x] Verify CSS injection in ESM and CommonJS consumers.
+- [x] Verify SSR import and render in React 18 and React 19 fixtures.
+- [x] Review source maps and minification policy for a published library.
+- [x] Prepare release notes grouped by fixes, accessibility, performance,
       dependencies, and compatibility.
-- [ ] Recommend `0.4.0` unless implementation introduces an explicitly breaking
+- [x] Recommend `0.4.0` unless implementation introduces an explicitly breaking
       public API change.
 
 ### Final Required Test Matrix
@@ -1375,14 +1375,40 @@ Do not rely only on this dated list.
 
 ### Acceptance Criteria
 
-- [ ] No known high or moderate advisory remains without documented acceptance.
-- [ ] All final verification commands pass from a clean checkout/install.
-- [ ] Packed artifact smoke tests pass.
-- [ ] README matches implementation and generated types.
-- [ ] `git diff --check` is clean.
-- [ ] No unrelated file or metadata churn is present.
-- [ ] Final report lists residual risks honestly; it does not claim proof of zero
+- [x] No known high or moderate advisory remains without documented acceptance.
+- [x] All final verification commands pass from a clean checkout/install.
+- [x] Packed artifact smoke tests pass.
+- [x] README matches implementation and generated types.
+- [x] `git diff --check` is clean.
+- [x] No unrelated file or metadata churn is present.
+- [x] Final report lists residual risks honestly; it does not claim proof of zero
       bugs.
+
+### Implementation Evidence - 2026-07-17
+
+- Live full-lockfile audit initially found `7` high and `5` moderate
+  advisories, including newer 2026 advisories absent from the original target
+  list. After upstream upgrades and build-plugin replacement, the same audit
+  reports zero known advisories. No advisory is muted or accepted.
+- Rollup is `4.62.2`; official Rollup plugins use their current compatible
+  releases. The abandoned `rollup-plugin-postcss` dependency graph was removed
+  and replaced by a small local SSR-safe injector using `lightningcss@1.32.0`.
+- `pnpm@10.34.5` is pinned because it supports both Node 20 and 22. The newer
+  pnpm 11 line requires Node 22.13 or later and cannot cover the Node 20 matrix.
+- No Browserslist database remains in the CSS build path; Lightning CSS receives
+  the source directly and minifies without Browserslist discovery.
+- Published ESM and CommonJS are minified without source maps for `0.4.0`.
+  Supported diagnostics remain in production output, and CSS is minified and
+  injected once behind a `document` guard.
+- Node 20.19.4: typecheck, lint, `69` unit tests, build, ESM/CommonJS smoke,
+  package smoke, bundle budgets, Chromium, WebKit, and audit pass.
+- Node 22.15.1: typecheck, lint, `69` unit tests, build, and audit pass.
+- Chromium: `65` tests pass. WebKit: `65` tests pass, including native and
+  forced legacy inert paths, focus isolation, and reduced motion.
+- Packed consumers pass under React 18.3.1/GSAP 3.12.5 and React 19.2.7/GSAP
+  3.13.0 for ESM, CommonJS, declarations, SSR, CSS, and real browser animation.
+- Tarball allowlist is exactly `LICENSE`, `README.md`, `package.json`,
+  `dist/index.cjs`, `dist/index.esm.js`, and `dist/index.d.ts`.
 
 ---
 
