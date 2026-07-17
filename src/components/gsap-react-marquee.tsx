@@ -22,6 +22,7 @@ import {
   getMinSize,
   hasUsableMeasurement,
   normalizeMarqueeOptions,
+  resumeTimeline,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
 import { useMarqueeMeasurement } from "./use-marquee-measurement";
@@ -74,6 +75,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const marqueeRef = useRef<HTMLDivElement | null>(null);
+    const pausedRef = useRef(paused);
+    pausedRef.current = paused;
     const [duplicateCount, setDuplicateCount] = useState(1);
     const [detectedGradientColor, setDetectedGradientColor] = useState<
       string | null
@@ -228,6 +231,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           spacing,
           speed,
           delay,
+          loop,
           paused,
           draggable,
         } satisfies GSAPReactMarqueeProps;
@@ -250,6 +254,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           ? contentElements[0].offsetTop
           : contentElements[0].offsetLeft;
         let scrollObserver: Observer | null = null;
+        let scrollResponseTimeline: ReturnType<typeof gsap.timeline> | null =
+          null;
+        let isPointerInside = false;
+        let isFocusInside = false;
+
+        const shouldRemainPaused = () =>
+          pausedRef.current ||
+          (pauseOnHover && (isPointerInside || isFocusInside));
 
         if (
           !hasUsableMeasurement(containerSize, contentSize, targetSize) ||
@@ -310,12 +322,10 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
          * after every required measurement has become finite and positive.
          */
         const timeline = gsap.timeline({
-          paused,
+          paused: true,
           repeat: loop,
           defaults: { ease: "none" },
-          onReverseComplete() {
-            timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
-          },
+          data: "gsap-react-marquee-base",
         });
 
         const cleanupMarqueeAnimation = createMarqueeAnimation(
@@ -326,7 +336,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           marqueeElements,
           isVertical,
           animationProps,
-          containerElement
+          containerElement,
+          shouldRemainPaused
         );
 
         if (!hasUsableMeasurement(timeline.duration())) {
@@ -335,34 +346,61 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           return;
         }
 
+        const stopScrollResponse = () => {
+          scrollResponseTimeline?.kill();
+          scrollResponseTimeline = null;
+          gsap.killTweensOf(timeline);
+        };
+
+        const restoreBaseTimeline = () => {
+          resumeTimeline({
+            timeline,
+            isReverse,
+            paused: shouldRemainPaused(),
+          });
+        };
+
         if (scrollFollow) {
           scrollObserver = Observer.create({
             onChangeY(self) {
-              /**
-               * Wheel movement temporarily changes timeline speed and direction.
-               * The first tween gives an immediate response; the second eases
-               * back to a steadier speed so scrolling does not feel abrupt.
-               */
-              let factor = scrollSpeed * (isReverse ? -1 : 1);
-              if (self.deltaY < 0) {
-                factor *= -1;
+              stopScrollResponse();
+
+              if (shouldRemainPaused()) {
+                restoreBaseTimeline();
+                return;
               }
 
-              gsap
+              /**
+               * Preserve the legacy response curve: scrollSpeed is an input
+               * strength whose square sets the temporary timeScale. Wheel
+               * direction may invert motion; completion always restores the
+               * configured direction at timeScale 1.
+               */
+              const baseTimeScale = isReverse ? -1 : 1;
+              const wheelDirection = self.deltaY < 0 ? -1 : 1;
+              const responseTimeScale =
+                baseTimeScale * wheelDirection * scrollSpeed * scrollSpeed;
+
+              scrollResponseTimeline = gsap
                 .timeline({
+                  data: "gsap-react-marquee-scroll-response",
                   defaults: {
                     ease: "none",
                   },
+                  onComplete() {
+                    scrollResponseTimeline = null;
+                    restoreBaseTimeline();
+                  },
                 })
                 .to(timeline, {
-                  timeScale: factor * scrollSpeed,
+                  timeScale: responseTimeScale,
                   duration: 0.2,
                   overwrite: true,
                 })
                 .to(
                   timeline,
                   {
-                    timeScale: factor / scrollSpeed,
+                    timeScale: baseTimeScale,
                     duration: 1,
                   },
                   "+=0.3"
@@ -371,29 +409,47 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           });
         }
 
-        const onMouseEnter = contextSafe(() => {
+        const onPointerEnter = contextSafe(() => {
+          isPointerInside = true;
+          stopScrollResponse();
           timeline.pause();
         });
-        const onMouseLeave = contextSafe(() => {
-          if (isReverse) {
-            timeline.reverse();
-          } else {
-            timeline.play();
+        const onPointerLeave = contextSafe(() => {
+          isPointerInside = false;
+          restoreBaseTimeline();
+        });
+        const onFocusIn = contextSafe(() => {
+          isFocusInside = true;
+          stopScrollResponse();
+          timeline.pause();
+        });
+        const onFocusOut = contextSafe((event: FocusEvent) => {
+          const nextTarget = event.relatedTarget;
+          if (nextTarget instanceof Node && containerElement.contains(nextTarget)) {
+            return;
           }
+
+          isFocusInside = false;
+          restoreBaseTimeline();
         });
 
         if (pauseOnHover) {
-          containerElement.addEventListener("mouseenter", onMouseEnter);
-          containerElement.addEventListener("mouseleave", onMouseLeave);
+          containerElement.addEventListener("pointerenter", onPointerEnter);
+          containerElement.addEventListener("pointerleave", onPointerLeave);
+          containerElement.addEventListener("focusin", onFocusIn);
+          containerElement.addEventListener("focusout", onFocusOut);
         }
 
         return () => {
-          containerElement.removeEventListener("mouseenter", onMouseEnter);
-          containerElement.removeEventListener("mouseleave", onMouseLeave);
+          containerElement.removeEventListener("pointerenter", onPointerEnter);
+          containerElement.removeEventListener("pointerleave", onPointerLeave);
+          containerElement.removeEventListener("focusin", onFocusIn);
+          containerElement.removeEventListener("focusout", onFocusOut);
+          scrollObserver?.kill();
+          stopScrollResponse();
+          cleanupMarqueeAnimation?.();
           gsap.killTweensOf(timeline);
           timeline.kill();
-          scrollObserver?.kill();
-          cleanupMarqueeAnimation?.();
         };
       },
       {

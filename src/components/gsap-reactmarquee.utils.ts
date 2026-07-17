@@ -16,6 +16,37 @@ const MAX_SCROLL_SPEED = 4;
 
 type GSAPTimeline = ReturnType<typeof gsap.timeline>;
 
+export type ResumeTimelineOptions = {
+  timeline: GSAPTimeline;
+  isReverse: boolean;
+  paused: boolean;
+};
+
+/**
+ * Restores the base marquee direction from controlled React state.
+ * Interaction tweens may temporarily change timeScale, so every transition
+ * resets it before applying play, reverse, or pause.
+ */
+export const resumeTimeline = ({
+  timeline,
+  isReverse,
+  paused,
+}: ResumeTimelineOptions): void => {
+  timeline.timeScale(1);
+
+  if (paused) {
+    timeline.pause();
+    return;
+  }
+
+  if (isReverse) {
+    timeline.reverse();
+    return;
+  }
+
+  timeline.play();
+};
+
 export type NormalizedMarqueeOptions = {
   delay: number;
   loop: -1 | number;
@@ -366,10 +397,12 @@ export const createMarqueeAnimation = (
   dragTrigger: HTMLElement | HTMLElement[],
   isVertical: boolean,
   props: GSAPReactMarqueeProps,
-  offsetContainer?: HTMLElement
+  offsetContainer?: HTMLElement,
+  getPaused?: () => boolean
 ): (() => void) | undefined => {
-  const { spacing, speed, delay } = normalizeMarqueeOptions(props);
+  const { spacing, speed, delay, loop } = normalizeMarqueeOptions(props);
   const { paused = false, draggable = false } = props;
+  const readPaused = getPaused ?? (() => paused);
 
   const lastIndex = items.length - 1;
   if (lastIndex < 0) return;
@@ -519,35 +552,52 @@ export const createMarqueeAnimation = (
       );
   });
 
-  timeline.delay(delay);
-
   let reverseDelayTween: gsap.core.Tween | undefined;
   let throwDelayTween: gsap.core.Tween | undefined;
   let draggableInstance: ReturnType<typeof Draggable.create>[number] | undefined;
   let dragProxyElement: HTMLElement | undefined;
 
-  // GSAP reverse timelines need their totalTime pushed forward to repeat continuously.
-  const keepReverseLooping = () => {
+  const restoreControlledState = () => {
+    resumeTimeline({
+      timeline,
+      isReverse,
+      paused: readPaused(),
+    });
+  };
+
+  const scheduleReverseResume = (data: string) => {
+    const delayedCall = gsap.delayedCall(delay, () => {
+      restoreControlledState();
+    });
+    delayedCall.data = data;
+    return delayedCall;
+  };
+
+  timeline.eventCallback("onReverseComplete", null);
+
+  if (loop === -1) {
     timeline.eventCallback("onReverseComplete", () => {
       timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
     });
-  };
-
-  const playReverseAfterDelay = () => {
-    return gsap.delayedCall(delay, () => {
-      timeline.reverse();
-      keepReverseLooping();
-    });
-  };
+  }
 
   if (isReverse) {
-    if (paused) {
-      timeline.pause();
-      return undefined;
+    if (loop === -1) {
+      timeline.progress(1).pause();
+    } else {
+      timeline.totalProgress(1).pause();
     }
 
-    timeline.progress(1).pause();
-    reverseDelayTween = playReverseAfterDelay();
+    if (readPaused() || delay === 0) {
+      restoreControlledState();
+    } else {
+      reverseDelayTween = scheduleReverseResume(
+        "gsap-react-marquee-reverse-delay"
+      );
+    }
+  } else {
+    timeline.delay(delay);
+    restoreControlledState();
   }
 
   if (typeof Draggable === "function" && draggable) {
@@ -561,6 +611,20 @@ export const createMarqueeAnimation = (
     const wrapProgress = gsap.utils.wrap(0, 1);
     let dragRatio: number;
     let dragStartProgress: number;
+
+    const restoreAfterDrag = () => {
+      throwDelayTween?.kill();
+
+      if (isReverse && delay > 0 && !readPaused()) {
+        timeline.pause();
+        throwDelayTween = scheduleReverseResume(
+          "gsap-react-marquee-drag-delay"
+        );
+        return;
+      }
+
+      restoreControlledState();
+    };
 
     /**
      * Converts drag distance into timeline progress. The wrap function keeps the
@@ -593,6 +657,10 @@ export const createMarqueeAnimation = (
          * The proxy position is aligned to that progress so Draggable deltas map
          * back to the same timeline point without a visible jump.
          */
+        reverseDelayTween?.kill();
+        throwDelayTween?.kill();
+        draggableInstance?.tween?.kill();
+        gsap.killTweensOf(dragProxy);
         gsap.killTweensOf(timeline);
         timeline.pause();
         dragStartProgress = timeline.progress();
@@ -605,20 +673,11 @@ export const createMarqueeAnimation = (
       onThrowUpdate: syncTimelineToDrag,
       overshootTolerance: 0,
       inertia: true,
+      onRelease(this: Draggable) {
+        if (!this.isThrowing) restoreAfterDrag();
+      },
       onThrowComplete() {
-        if (!isReverse) {
-          timeline.play();
-          return;
-        }
-
-        if (paused) {
-          timeline.pause();
-          return;
-        }
-
-        timeline.progress(timeline.progress()).pause();
-        throwDelayTween?.kill();
-        throwDelayTween = playReverseAfterDelay();
+        restoreAfterDrag();
       },
     })[0];
   }
@@ -626,8 +685,11 @@ export const createMarqueeAnimation = (
   return () => {
     reverseDelayTween?.kill();
     throwDelayTween?.kill();
+    draggableInstance?.tween?.kill();
     draggableInstance?.kill();
+    if (dragProxyElement) gsap.killTweensOf(dragProxyElement);
     dragProxyElement?.remove();
+    timeline.eventCallback("onReverseComplete", null);
   };
 };
 

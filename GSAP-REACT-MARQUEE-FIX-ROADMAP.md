@@ -831,53 +831,59 @@ Required behavior:
 
 ### Implementation Tasks
 
-- [ ] Fix finite reverse initialization using total timeline progress.
-- [ ] Keep the reverse continuation callback only for infinite timelines.
-- [ ] Centralize play, reverse, and pause transitions.
-- [ ] Make hover leave respect controlled `paused`.
-- [ ] Use pointer events where appropriate; add focus-in/focus-out handling for
+- [x] Fix finite reverse initialization using total timeline progress.
+- [x] Keep the reverse continuation callback only for infinite timelines.
+- [x] Centralize play, reverse, and pause transitions.
+- [x] Make hover leave respect controlled `paused`.
+- [x] Use pointer events where appropriate; add focus-in/focus-out handling for
       keyboard users when pause-on-hover behavior is enabled.
-- [ ] Initialize Draggable regardless of initial pause or direction.
-- [ ] Make `onThrowComplete` respect controlled `paused` in every direction.
-- [ ] Add a no-inertia `onRelease` path that restores the correct controlled
+- [x] Initialize Draggable regardless of initial pause or direction.
+- [x] Make `onThrowComplete` respect controlled `paused` in every direction.
+- [x] Add a no-inertia `onRelease` path that restores the correct controlled
       timeline state.
-- [ ] Kill inertia, delayed calls, Observer instances, and timeline tweens during
+- [x] Kill inertia, delayed calls, Observer instances, and timeline tweens during
       cleanup.
-- [ ] Ensure scroll-follow cannot resume a paused timeline.
-- [ ] Ensure scroll-follow returns to the base direction and time scale after its
+- [x] Ensure scroll-follow cannot resume a paused timeline.
+- [x] Ensure scroll-follow returns to the base direction and time scale after its
       response tween.
-- [ ] Verify whether current scroll speed is unintentionally squared. Define one
+- [x] Verify whether current scroll speed is unintentionally squared. Define one
       multiplier interpretation and document it.
-- [ ] Prevent hover, focus, drag, and scroll handlers from capturing stale paused
+- [x] Prevent hover, focus, drag, and scroll handlers from capturing stale paused
       values. Use a latest-value ref only where necessary.
+
+Consumer-validation decision: preserve the legacy `scrollSpeed²` transient
+response curve because `scrollSpeed` is an interaction-strength input, then
+restore the configured direction at base `timeScale=1`. Every infinite timeline
+owns the single reverse-continuation callback so temporary scroll reversal
+cannot stop forward marquees at time zero.
 
 ### Required Regression Tests
 
-- [ ] `loop=0`, `1`, `2`, and `-1` behave correctly for left.
-- [ ] The same loop matrix behaves correctly for right.
-- [ ] The same loop matrix behaves correctly for up.
-- [ ] The same loop matrix behaves correctly for down.
-- [ ] Finite reverse timelines execute exactly `loop + 1` cycles.
-- [ ] `paused=true` remains paused after pointer enter and leave.
-- [ ] `paused=true` remains paused after focus enters and leaves.
-- [ ] `paused=true` remains paused after drag release with inertia.
-- [ ] `paused=true` remains paused after drag release without inertia.
-- [ ] `paused=true` remains paused after scroll-follow input.
-- [ ] Changing `paused` from true to false resumes in the configured direction.
-- [ ] Changing `paused` from false to true stops active base and interaction
+- [x] `loop=0`, `1`, `2`, and `-1` behave correctly for left.
+- [x] The same loop matrix behaves correctly for right.
+- [x] The same loop matrix behaves correctly for up.
+- [x] The same loop matrix behaves correctly for down.
+- [x] Finite reverse timelines execute exactly `loop + 1` cycles.
+- [x] `paused=true` remains paused after pointer enter and leave.
+- [x] `paused=true` remains paused after focus enters and leaves.
+- [x] `paused=true` remains paused after drag release with inertia.
+- [x] `paused=true` remains paused after drag release without inertia.
+- [x] `paused=true` remains paused after scroll-follow input.
+- [x] Changing `paused` from true to false resumes in the configured direction.
+- [x] Changing `paused` from false to true stops active base and interaction
       tweens.
-- [ ] Reverse plus paused still creates a usable Draggable instance.
-- [ ] Unmount during reverse delay leaves no active delayed call.
-- [ ] React StrictMode mount, cleanup, and remount leaves one active timeline and
+- [x] Reverse plus paused still creates a usable Draggable instance.
+- [x] Unmount during reverse delay leaves no active delayed call.
+- [x] React StrictMode mount, cleanup, and remount leaves one active timeline and
       one listener set.
 
 ### Acceptance Criteria
 
-- [ ] Controlled `paused` semantics pass every interaction test.
-- [ ] Finite reverse repeat counts are exact.
-- [ ] Infinite reverse remains continuous for at least two test windows without
+- [x] Controlled `paused` semantics pass every interaction test.
+- [x] Finite reverse repeat counts are exact.
+- [x] Infinite reverse remains continuous for at least two test windows without
       a visible jump.
-- [ ] No duplicate listeners or active GSAP resources remain after cleanup.
+- [x] No duplicate listeners or active GSAP resources remain after cleanup.
 
 ---
 

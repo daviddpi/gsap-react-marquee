@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   calculateDuplicateCount,
   calculateDuplicateCountResult,
@@ -6,7 +6,26 @@ import {
   getMinSize,
   hasUsableMeasurement,
   normalizeMarqueeOptions,
+  resumeTimeline,
 } from "../../src/components/gsap-reactmarquee.utils";
+
+type ControlledTimeline = Parameters<typeof resumeTimeline>[0]["timeline"];
+
+const createTimelineControlMock = () => {
+  const timeline = {
+    pause: vi.fn(),
+    play: vi.fn(),
+    reverse: vi.fn(),
+    timeScale: vi.fn(),
+  };
+
+  timeline.pause.mockReturnValue(timeline);
+  timeline.play.mockReturnValue(timeline);
+  timeline.reverse.mockReturnValue(timeline);
+  timeline.timeScale.mockReturnValue(timeline);
+
+  return timeline;
+};
 
 describe("marquee utility baseline", () => {
   it("returns one visual duplicate when fill is disabled", () => {
@@ -187,5 +206,50 @@ describe("hasUsableMeasurement", () => {
     expect(calculateDuplicateCount(100, Number.POSITIVE_INFINITY, fillProps)).toBe(
       1
     );
+  });
+});
+
+describe("resumeTimeline", () => {
+  it("always keeps controlled paused timelines paused", () => {
+    const timeline = createTimelineControlMock();
+
+    resumeTimeline({
+      timeline: timeline as unknown as ControlledTimeline,
+      isReverse: true,
+      paused: true,
+    });
+
+    expect(timeline.timeScale).toHaveBeenCalledWith(1);
+    expect(timeline.pause).toHaveBeenCalledOnce();
+    expect(timeline.play).not.toHaveBeenCalled();
+    expect(timeline.reverse).not.toHaveBeenCalled();
+  });
+
+  it("restores forward playback at the base time scale", () => {
+    const timeline = createTimelineControlMock();
+
+    resumeTimeline({
+      timeline: timeline as unknown as ControlledTimeline,
+      isReverse: false,
+      paused: false,
+    });
+
+    expect(timeline.timeScale).toHaveBeenCalledWith(1);
+    expect(timeline.play).toHaveBeenCalledOnce();
+    expect(timeline.reverse).not.toHaveBeenCalled();
+  });
+
+  it("restores reverse playback at the base time scale", () => {
+    const timeline = createTimelineControlMock();
+
+    resumeTimeline({
+      timeline: timeline as unknown as ControlledTimeline,
+      isReverse: true,
+      paused: false,
+    });
+
+    expect(timeline.timeScale).toHaveBeenCalledWith(1);
+    expect(timeline.reverse).toHaveBeenCalledOnce();
+    expect(timeline.play).not.toHaveBeenCalled();
   });
 });
