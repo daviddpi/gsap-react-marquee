@@ -8,12 +8,28 @@ import GSAPReactMarquee, {
 
 const props: GSAPReactMarqueeProps = {
   children: "typed child",
+  className: "typed-content",
   containerClassName: "typed-root",
-  containerProps: { "aria-label": "Typed marquee", role: "region" },
+  containerProps: {
+    "aria-label": "Typed marquee",
+    "data-package-smoke": true,
+    role: "region",
+  },
   containerStyle: { height: 320 },
-  dir: "left",
-  fill: false,
+  dir: "up",
+  loop: 2,
+  paused: true,
+  delay: 0,
+  speed: 120,
+  fill: true,
   maxDuplicates: 50,
+  pauseOnHover: true,
+  gradient: true,
+  gradientColor: "#000",
+  spacing: 12,
+  draggable: true,
+  scrollFollow: true,
+  scrollSpeed: 3,
   respectReducedMotion: true,
 };
 

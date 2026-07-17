@@ -120,6 +120,11 @@ test("equivalent parent rerender preserves timeline and listeners", async ({
   await expect
     .poll(() => page.evaluate(() => window.__marqueeFixture.baseTimelineState()))
     .not.toBeNull();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.marqueeListenerCount())
+    )
+    .toBe(4);
 
   const before = await page.evaluate(() => ({
     listeners: window.__marqueeFixture.marqueeListenerCount(),

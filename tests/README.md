@@ -19,7 +19,10 @@ fallback independently from the native path.
 - `pnpm run check`: TypeScript, ESLint, and Vitest unit/rendering tests.
 - `pnpm run test:browser`: Chromium layout and animation baseline.
 - `pnpm run test:browser:webkit`: WebKit compatibility baseline.
-- `pnpm run test:package`: build plus ESM, CommonJS, types, SSR, and output checks.
+- `pnpm run test:package`: build plus repository export checks, consumer bundle
+  budgets, and a real packed-tarball install under React 18/GSAP 3.12 and React
+  19/GSAP 3.13. Packed fixtures verify ESM, CommonJS, types, SSR, CSS injection,
+  file allowlisting, and Chromium animation.
 
 Browser assertions use stable DOM state, dimensions, and GSAP durations. They do
 not use frame-perfect animation screenshots.
@@ -36,5 +39,5 @@ pnpm run test:browser:webkit
 pnpm run test:package
 ```
 
-The packed package must then pass the milestone-specific checks in a real
-consumer project as required by the release roadmap.
+The package command creates isolated real consumers in the system temporary
+directory and removes them after the checks finish.

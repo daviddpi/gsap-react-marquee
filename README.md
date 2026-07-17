@@ -18,6 +18,17 @@ pnpm add gsap-react-marquee gsap @gsap/react
 
 `react`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app. Your React application may still use `react-dom`, but this package does not require it directly.
 
+### Compatibility
+
+| Environment | Supported versions | Release verification |
+| --- | --- | --- |
+| React | 18 and 19 | Packed ESM, CommonJS, types, SSR, CSS, and Chromium fixtures |
+| GSAP | 3.12 and 3.13 | Packed fixtures use 3.12.5 and 3.13.0 |
+| `@gsap/react` | 2.1 or newer | Packed fixtures use 2.1.2 |
+| Node.js | 20 and 22 | Typecheck, lint, unit, build, package, and audit release matrix |
+
+Node.js versions older than 20 are not part of the `0.4.0` support contract.
+
 ## Basic Usage
 
 ```tsx
@@ -48,17 +59,28 @@ Use `fill` when a short piece of content should repeat enough times to cover the
 </Marquee>
 ```
 
+`fill` is independent from `dir`. It uses the same coverage calculation for
+left, right, up, and down movement. Without `fill`, every direction renders one
+semantic original and one visual clone.
+
 ### Vertical Marquee
 
 ```tsx
-<div style={{ height: 320 }}>
-  <Marquee dir="up" fill speed={80} spacing={12}>
-    <div>Item 1</div>
-    <div>Item 2</div>
-    <div>Item 3</div>
-  </Marquee>
-</div>
+<Marquee
+  dir="up"
+  fill
+  speed={80}
+  spacing={12}
+  containerStyle={{ height: 320 }}
+>
+  <div>Item 1</div>
+  <div>Item 2</div>
+  <div>Item 3</div>
+</Marquee>
 ```
+
+Use `containerStyle` or `containerClassName` when the surrounding layout does
+not already provide a constrained height.
 
 ### Gradient Overlay
 
@@ -80,6 +102,20 @@ When `gradient` is enabled, the component detects the nearest non-transparent ba
 
 `pauseOnHover` also pauses while keyboard focus is inside the marquee. Leaving
 with either pointer or focus cannot override a controlled `paused={true}`.
+
+### Controlled Pause
+
+`paused` is controlled React state, not only an initial setting. Changing it to
+`true` pauses the current direction; changing it to `false` resumes that
+direction at the base speed. Hover/focus leave, drag release, scroll response,
+reverse delay, and late plugin loading cannot resume `paused={true}`. Draggable
+still initializes while controlled-paused so it becomes usable when resumed.
+
+```tsx
+<Marquee paused={isPaused} draggable>
+  <span>Controlled animation</span>
+</Marquee>
+```
 
 ### Scroll-Follow
 
@@ -193,6 +229,20 @@ Use `containerProps` for root semantics and event handlers:
 | `scrollFollow` | `boolean` | `false` | Adjusts timeline speed from wheel/scroll direction. |
 | `scrollSpeed` | `number` | `2.5` | Scroll-follow multiplier. Clamped between `1.1` and `4`. |
 
+### Numeric Normalization
+
+Numeric props are normalized before layout or GSAP receives them. Invalid
+values never create negative, `NaN`, or infinite durations.
+
+| Prop | Accepted values | Invalid-value behavior |
+| --- | --- | --- |
+| `speed` | finite number greater than `0` | Uses `100` |
+| `spacing` | finite number at least `0` | Uses `16` |
+| `delay` | finite number at least `0` | Uses `0` |
+| `loop` | `-1` or integer at least `0` | Uses `-1` |
+| `scrollSpeed` | finite number | Clamped to `1.1`–`4`; non-finite uses `2.5` |
+| `maxDuplicates` | positive integer | Uses `100`, then caps at hard ceiling `250` |
+
 ## How Sizing Works
 
 The component renders one semantic original during SSR, then measures the root container and first content item after client mount. It creates enough inaccessible visual clones for the selected mode and starts a GSAP timeline unless reduced motion is active.
@@ -259,6 +309,8 @@ and other non-critical styles can still be overridden through `containerStyle`.
 - In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
 - Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
 - Changing animation props such as `dir`, `speed`, `delay`, `fill`, `maxDuplicates`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+- ESM and CommonJS bundles contain the same minified runtime and inject one minified base-style element in browsers. Importing either entrypoint during SSR does not access `document`.
+- Published JavaScript and CSS are minified, while supported development diagnostics remain intact. Source maps are intentionally not published for `0.4.0`; repository TypeScript remains the review/debug source.
 
 ## Browser Support
 
@@ -292,28 +344,38 @@ Momentum depends on GSAP `InertiaPlugin` availability. If the plugin is not avai
 
 ## Development
 
-Install dependencies:
+Use Node.js 20 or 22 and the pinned pnpm version from `packageManager`.
+
+Install the exact lockfile:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
-Run a TypeScript check:
+Run TypeScript, lint, and unit checks:
 
 ```bash
-pnpm exec tsc --noEmit
+pnpm run check
 ```
 
-Build the package:
+Run browser compatibility checks:
 
 ```bash
-pnpm run build
+pnpm run test:browser
+pnpm run test:browser:webkit
 ```
 
-Preview the published package contents:
+Build and test the real packed artifact against React 18 and 19 consumers:
 
 ```bash
-npm pack --dry-run
+pnpm run test:package
+```
+
+Run the full dependency audit or complete local release gate:
+
+```bash
+pnpm run audit
+pnpm run release:check
 ```
 
 ## License
