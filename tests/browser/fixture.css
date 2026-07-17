@@ -11,6 +11,6 @@ body {
 
 .fixture-content {
   box-sizing: border-box;
-  width: 160px;
-  height: 40px;
+  width: var(--fixture-content-width, 160px);
+  height: var(--fixture-content-height, 40px);
 }
