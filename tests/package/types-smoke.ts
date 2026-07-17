@@ -8,8 +8,11 @@ import GSAPReactMarquee, {
 
 const props: GSAPReactMarqueeProps = {
   children: "typed child",
+  containerClassName: "typed-root",
+  containerStyle: { height: 320 },
   dir: "left",
   fill: false,
+  maxDuplicates: 50,
 };
 
 const duplicateCount: number = calculateDuplicateCount(100, 500, props);

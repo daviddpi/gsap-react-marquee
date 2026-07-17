@@ -51,7 +51,13 @@ Use `fill` when a short piece of content should repeat enough times to cover the
 ### Vertical Marquee
 
 ```tsx
-<Marquee dir="up" speed={80} spacing={12}>
+<Marquee
+  dir="up"
+  fill
+  speed={80}
+  spacing={12}
+  containerStyle={{ height: 320 }}
+>
   <div>Item 1</div>
   <div>Item 2</div>
   <div>Item 3</div>
@@ -123,12 +129,15 @@ export function Example() {
 | --- | --- | --- | --- |
 | `children` | `ReactNode` | Required | Content rendered inside each marquee item. |
 | `className` | `string` | `undefined` | Class applied to each `.gsap-react-marquee-content` element. |
+| `containerClassName` | `string` | `undefined` | Class applied only to the root viewport. |
+| `containerStyle` | `CSSProperties` | `undefined` | Inline styles applied to the root viewport. |
 | `dir` | `"left" \| "right" \| "up" \| "down"` | `"left"` | Direction of movement. |
 | `loop` | `number` | `-1` | Number of timeline repeats. `-1` means infinite. |
 | `paused` | `boolean` | `false` | Starts the timeline paused. |
 | `delay` | `number` | `0` | Delay in seconds before the timeline starts. |
 | `speed` | `number` | `100` | Animation speed in pixels per second. |
 | `fill` | `boolean` | `false` | Repeats content enough times to cover the measured marquee area. |
+| `maxDuplicates` | `number` | `100` | Maximum additional clones in fill mode, capped internally at `250`. |
 | `pauseOnHover` | `boolean` | `false` | Pauses on pointer hover and resumes on leave. |
 | `gradient` | `boolean` | `false` | Enables edge gradient overlays. |
 | `gradientColor` | `string` | `undefined` | Explicit gradient color. Overrides automatic background detection. |
@@ -143,9 +152,9 @@ The component measures the root container and first content item after mount. It
 
 In normal mode (`fill={false}`), the component renders one original item plus one clone. This is suitable when your content is already large enough to create a continuous loop.
 
-In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size. The duplicate count is capped to prevent excessive DOM growth, and the component re-measures when the container, the first content item, child content, or unloaded images change size.
+In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size plus one seamless wrap segment. The calculation includes `spacing` and behaves identically for horizontal and vertical directions. `maxDuplicates` defaults to `100` and has a hard internal ceiling of `250`. When a configured ceiling prevents full coverage, development builds emit one warning and keep the rendered clone count finite.
 
-If the container has no reliable defined size, the component falls back to the viewport width or height as its measurement target. This avoids recursive expansion when the marquee is placed inside content-sized layouts.
+Clone calculation uses the root container's measured width or height. For predictable vertical fill, provide an explicit root height with `containerStyle`, `containerClassName`, or a constrained parent. Clone-generated size changes are excluded from subsequent viewport measurements.
 
 ## Styling
 
@@ -174,14 +183,27 @@ Use `className` to style the repeated content wrapper:
 </Marquee>
 ```
 
-For predictable measurement, give the marquee or its parent a stable width for horizontal marquees and a stable height for vertical marquees.
+Use `containerClassName` or `containerStyle` for the root viewport:
+
+```tsx
+<Marquee
+  dir="up"
+  fill
+  containerClassName="vertical-marquee"
+  containerStyle={{ height: 320, backgroundColor: "#111827" }}
+>
+  <span>Measured vertical content</span>
+</Marquee>
+```
+
+Required root layout styles remain controlled by the component. Width, height, color, background, and other non-critical viewport styles can be supplied through `containerStyle`. For predictable measurement, give horizontal marquees a stable width and vertical marquees a stable height.
 
 ## Runtime Notes
 
 - The component uses `useLayoutEffect`, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements, so it is intended for client-side rendering.
 - In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
 - Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
-- Changing animation props such as `dir`, `speed`, `delay`, `fill`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+- Changing animation props such as `dir`, `speed`, `delay`, `fill`, `maxDuplicates`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
 
 ## Troubleshooting
 
@@ -195,7 +217,7 @@ Give the container or one of its parents a real height. Vertical mode measures h
 
 ### The marquee expands the page
 
-Place it in a container with an explicit width or max width. In fill mode, the component falls back to viewport measurement when it detects content-sized containers, but explicit layout constraints are still more predictable.
+Place it in a container with an explicit width or max width. For vertical fill, set an explicit height on the root or its layout chain. Content-sized roots intentionally measure their current size instead of inferring an authored CSS constraint from computed pixel values.
 
 ### Dragging has no momentum
 

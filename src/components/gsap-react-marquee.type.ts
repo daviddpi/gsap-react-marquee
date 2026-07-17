@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export type GSAPReactMarqueeProps = {
   /**
@@ -10,6 +10,17 @@ export type GSAPReactMarqueeProps = {
    * @description Additional CSS classes applied to each content wrapper.
    */
   className?: string;
+
+  /**
+   * @description Additional CSS classes applied only to the root viewport.
+   */
+  containerClassName?: string;
+
+  /**
+   * @description Inline styles applied to the root viewport. Width and height
+   * can be used to provide an explicit measurement area.
+   */
+  containerStyle?: CSSProperties;
 
   /**
    * @description Direction of the marquee movement.
@@ -55,6 +66,14 @@ export type GSAPReactMarqueeProps = {
    * @default false
    */
   fill?: boolean;
+
+  /**
+   * @description Maximum number of additional clones rendered in fill mode.
+   * Positive integers are accepted up to the internal safety ceiling.
+   * @type {number}
+   * @default 100
+   */
+  maxDuplicates?: number;
 
   /**
    * @description Pause the marquee while the pointer hovers the root container.

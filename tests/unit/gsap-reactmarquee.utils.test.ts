@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateDuplicateCount,
+  calculateDuplicateCountResult,
   calculateDuplicates,
   getMinSize,
   hasUsableMeasurement,
@@ -34,6 +35,7 @@ describe("normalizeMarqueeOptions", () => {
   const defaults = {
     delay: 0,
     loop: -1,
+    maxDuplicates: 100,
     scrollSpeed: 2.5,
     spacing: 16,
     speed: 100,
@@ -45,6 +47,7 @@ describe("normalizeMarqueeOptions", () => {
       normalizeMarqueeOptions({
         delay: 1,
         loop: 2,
+        maxDuplicates: 25,
         scrollSpeed: 3,
         spacing: 0,
         speed: 80,
@@ -52,6 +55,7 @@ describe("normalizeMarqueeOptions", () => {
     ).toEqual({
       delay: 1,
       loop: 2,
+      maxDuplicates: 25,
       scrollSpeed: 3,
       spacing: 0,
       speed: 80,
@@ -97,6 +101,73 @@ describe("normalizeMarqueeOptions", () => {
       expect(normalizeMarqueeOptions({ loop }).loop).toBe(-1);
     }
   );
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "normalizes invalid maxDuplicates %s to 100",
+    (maxDuplicates) => {
+      expect(normalizeMarqueeOptions({ maxDuplicates }).maxDuplicates).toBe(100);
+    }
+  );
+
+  it("enforces the internal duplicate safety ceiling", () => {
+    expect(normalizeMarqueeOptions({ maxDuplicates: 10_000 }).maxDuplicates).toBe(
+      250
+    );
+  });
+});
+
+describe("calculateDuplicateCount", () => {
+  const fillProps = { children: null, fill: true };
+
+  it("keeps one duplicate for normal mode on every target size", () => {
+    expect(calculateDuplicateCount(10, 10_000, { ...fillProps, fill: false })).toBe(
+      1
+    );
+  });
+
+  it("includes spacing while covering the viewport and one wrap segment", () => {
+    expect(calculateDuplicateCount(100, 410, { ...fillProps, spacing: 0 })).toBe(
+      5
+    );
+    expect(calculateDuplicateCount(100, 410, { ...fillProps, spacing: 20 })).toBe(
+      4
+    );
+    expect(calculateDuplicateCount(100, 410, { ...fillProps, spacing: 200 })).toBe(
+      3
+    );
+  });
+
+  it("uses a realistic default before reaching the hard ceiling", () => {
+    expect(calculateDuplicateCount(10, 1_000, { ...fillProps, spacing: 0 })).toBe(
+      100
+    );
+  });
+
+  it("reports configured and internal coverage limits with finite output", () => {
+    expect(
+      calculateDuplicateCountResult(1, 1_000, {
+        ...fillProps,
+        maxDuplicates: 3,
+        spacing: 0,
+      })
+    ).toEqual({
+      duplicateCount: 3,
+      limitReached: true,
+      requiredDuplicateCount: 1_000,
+    });
+
+    expect(
+      calculateDuplicateCountResult(1, 1_000, {
+        ...fillProps,
+        maxDuplicates: 10_000,
+        spacing: 0,
+      })
+    ).toEqual({
+      duplicateCount: 250,
+      limitReached: true,
+      requiredDuplicateCount: 1_000,
+    });
+  });
 });
 
 describe("hasUsableMeasurement", () => {

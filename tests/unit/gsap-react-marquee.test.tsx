@@ -2,8 +2,9 @@ import { render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { registerPlugin } = vi.hoisted(() => ({
+const { registerPlugin, set } = vi.hoisted(() => ({
   registerPlugin: vi.fn(),
+  set: vi.fn(),
 }));
 
 vi.mock("@gsap/react", () => {
@@ -15,7 +16,7 @@ vi.mock("@gsap/react", () => {
 });
 
 vi.mock("gsap", () => ({
-  gsap: { registerPlugin },
+  gsap: { registerPlugin, set },
 }));
 
 vi.mock("gsap/all.js", () => ({
@@ -59,5 +60,42 @@ describe("GSAPReactMarquee rendering baseline", () => {
     expect(marqueeRoot).toHaveClass("gsap-react-marquee-vertical");
     expect(container.querySelectorAll(".initial-content")).toHaveLength(0);
     expect(container.querySelectorAll(".updated-content")).toHaveLength(2);
+  });
+
+  it("keeps root classes and styles separate from repeated content", () => {
+    const { container } = render(
+      <GSAPReactMarquee
+        className="content-only"
+        containerClassName="viewport-only"
+        containerStyle={{
+          display: "grid",
+          height: 320,
+          overflow: "visible",
+          whiteSpace: "normal",
+        }}
+        gradientColor="#123456"
+      >
+        <span>Styled content</span>
+      </GSAPReactMarquee>
+    );
+
+    const marqueeRoot = container.firstElementChild as HTMLElement;
+    expect(marqueeRoot).toHaveClass(
+      "gsap-react-marquee-container",
+      "viewport-only"
+    );
+    expect(marqueeRoot).not.toHaveClass("content-only");
+    expect(container.querySelectorAll(".viewport-only")).toHaveLength(1);
+    expect(container.querySelectorAll(".content-only")).toHaveLength(2);
+    expect(marqueeRoot).toHaveStyle({
+      display: "flex",
+      height: "320px",
+      overflow: "hidden",
+      position: "relative",
+      whiteSpace: "nowrap",
+    });
+    expect(marqueeRoot.style.getPropertyValue("--gradient-color")).toBe(
+      "#123456"
+    );
   });
 });

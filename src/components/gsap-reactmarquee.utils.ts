@@ -4,23 +4,13 @@ import { Draggable, InertiaPlugin } from "gsap/all.js";
 import { twMerge } from "tailwind-merge";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 
-const CONTENT_SIZED_DIMENSIONS = new Set([
-  "",
-  "auto",
-  "fit-content",
-  "min-content",
-  "max-content",
-  "-moz-fit-content",
-  "-webkit-fit-content",
-]);
-
-const MAX_DUPLICATES = 15;
-
 const DEFAULT_DELAY = 0;
 const DEFAULT_LOOP = -1;
+const DEFAULT_MAX_DUPLICATES = 100;
 const DEFAULT_SCROLL_SPEED = 2.5;
 const DEFAULT_SPACING = 16;
 const DEFAULT_SPEED = 100;
+const MAX_DUPLICATES_HARD_LIMIT = 250;
 const MIN_SCROLL_SPEED = 1.1;
 const MAX_SCROLL_SPEED = 4;
 
@@ -29,6 +19,7 @@ type GSAPTimeline = ReturnType<typeof gsap.timeline>;
 export type NormalizedMarqueeOptions = {
   delay: number;
   loop: -1 | number;
+  maxDuplicates: number;
   scrollSpeed: number;
   spacing: number;
   speed: number;
@@ -36,7 +27,12 @@ export type NormalizedMarqueeOptions = {
 
 type NumericMarqueeOptions = Pick<
   GSAPReactMarqueeProps,
-  "delay" | "loop" | "scrollSpeed" | "spacing" | "speed"
+  | "delay"
+  | "loop"
+  | "maxDuplicates"
+  | "scrollSpeed"
+  | "spacing"
+  | "speed"
 >;
 
 const isFiniteNumber = (value: number | undefined): value is number => {
@@ -78,8 +74,18 @@ export const normalizeMarqueeOptions = (
       options.loop >= 0)
       ? options.loop
       : DEFAULT_LOOP;
+  const configuredMaxDuplicates =
+    isFiniteNumber(options.maxDuplicates) &&
+    Number.isInteger(options.maxDuplicates) &&
+    options.maxDuplicates > 0
+      ? options.maxDuplicates
+      : DEFAULT_MAX_DUPLICATES;
+  const maxDuplicates = Math.min(
+    configuredMaxDuplicates,
+    MAX_DUPLICATES_HARD_LIMIT
+  );
 
-  return { delay, loop, scrollSpeed, spacing, speed };
+  return { delay, loop, maxDuplicates, scrollSpeed, spacing, speed };
 };
 
 /**
@@ -187,6 +193,7 @@ export const setupContainerStyles = (
   props: GSAPReactMarqueeProps
 ) => {
   const { spacing } = normalizeMarqueeOptions(props);
+  const usesContentTrack = props.fill || isVertical;
 
   gsap.set(containerElement, {
     gap: `${spacing}px`,
@@ -195,6 +202,8 @@ export const setupContainerStyles = (
 
   gsap.set(marqueeElements, {
     gap: `${spacing}px`,
+    [isVertical ? "minHeight" : "minWidth"]: usesContentTrack ? "auto" : "100%",
+    flex: usesContentTrack ? "0 0 auto" : "1",
   });
 
   gsap.set(contentElements, {
@@ -204,60 +213,21 @@ export const setupContainerStyles = (
 };
 
 /**
- * Checks whether an element has a reliable fixed dimension
- *
- * A marquee inside a content-sized container can recursively expand while we
- * add duplicates. This helper distinguishes real dimensions from values that
- * depend on content, such as auto, fit-content, min-content and max-content.
- *
- * @param element - Element to inspect
- * @param dimension - CSS dimension to check, either width or height
- * @returns true when the element can be measured directly
- */
-const hasDefinedDimension = (
-  element: HTMLElement,
-  dimension: "width" | "height"
-): boolean => {
-  const inlineValue = element.style[dimension];
-
-  if (inlineValue) {
-    return !CONTENT_SIZED_DIMENSIONS.has(inlineValue);
-  }
-
-  const computedValue = window.getComputedStyle(element)[dimension];
-
-  if (CONTENT_SIZED_DIMENSIONS.has(computedValue)) {
-    return false;
-  }
-
-  const parent = element.parentElement;
-  if (!parent) return true;
-
-  const parentValue = window.getComputedStyle(parent)[dimension];
-  return !(
-    computedValue === "100%" && CONTENT_SIZED_DIMENSIONS.has(parentValue)
-  );
-};
-
-/**
  * Public width-specific wrapper kept for consumers that import this utility
  *
  * @param element - Element to inspect
  * @returns true when the element has a reliable width
  */
 export const hasDefinedWidth = (element: HTMLElement): boolean => {
-  return hasDefinedDimension(element, "width");
+  return hasUsableMeasurement(element.offsetWidth);
 };
 
 /**
  * Calculates the reference size used to decide how many clones are needed
  *
- * Strategy:
- * 1. If the container has a reliable size, use that measured size.
- * 2. If the container adapts to content, use the viewport as a stable fallback.
- *
- * The viewport fallback prevents recursive expansion in layouts where the
- * container grows as duplicated children are added.
+ * Uses the root viewport's current axis size. Clone-generated root changes are
+ * filtered by the measurement snapshot lifecycle before this function runs, so
+ * CSS computed-value heuristics are neither necessary nor reliable here.
  *
  * @param containerElement - Root marquee container
  * @param isVertical - Whether the marquee should measure height instead of width
@@ -267,15 +237,9 @@ export const getTargetSize = (
   containerElement: HTMLElement,
   isVertical: boolean
 ): number => {
-  const dimension = isVertical ? "height" : "width";
-
-  if (hasDefinedDimension(containerElement, dimension)) {
-    return isVertical
-      ? containerElement.offsetHeight
-      : containerElement.offsetWidth;
-  }
-
-  return isVertical ? window.innerHeight : window.innerWidth;
+  return isVertical
+    ? containerElement.offsetHeight
+    : containerElement.offsetWidth;
 };
 
 export const getTargetWidth = getTargetSize;
@@ -293,19 +257,56 @@ export const getTargetWidth = getTargetSize;
  * @param props - Component props, specifically fill mode
  * @returns Number of cloned marquee items to render
  */
+export type DuplicateCountResult = {
+  duplicateCount: number;
+  limitReached: boolean;
+  requiredDuplicateCount: number;
+};
+
+export const calculateDuplicateCountResult = (
+  contentSize: number,
+  targetSize: number,
+  props: GSAPReactMarqueeProps
+): DuplicateCountResult => {
+  const { fill = false } = props;
+  const { maxDuplicates, spacing } = normalizeMarqueeOptions(props);
+
+  if (!fill || !hasUsableMeasurement(contentSize, targetSize)) {
+    return {
+      duplicateCount: 1,
+      limitReached: false,
+      requiredDuplicateCount: 1,
+    };
+  }
+
+  const itemExtent = contentSize + spacing;
+  if (!hasUsableMeasurement(itemExtent)) {
+    return {
+      duplicateCount: 1,
+      limitReached: false,
+      requiredDuplicateCount: 1,
+    };
+  }
+
+  const requiredTrack = targetSize + itemExtent;
+  const totalItems = Math.ceil((requiredTrack + spacing) / itemExtent);
+  const requiredDuplicateCount = Math.max(1, totalItems - 1);
+  const duplicateCount = Math.min(requiredDuplicateCount, maxDuplicates);
+
+  return {
+    duplicateCount,
+    limitReached: requiredDuplicateCount > maxDuplicates,
+    requiredDuplicateCount,
+  };
+};
+
 export const calculateDuplicateCount = (
   contentSize: number,
   targetSize: number,
   props: GSAPReactMarqueeProps
 ): number => {
-  const { fill = false } = props;
-
-  if (!fill || !hasUsableMeasurement(contentSize, targetSize)) return 1;
-
-  const duplicateCount =
-    contentSize < targetSize ? Math.ceil(targetSize / contentSize) : 1;
-
-  return Math.min(duplicateCount, MAX_DUPLICATES);
+  return calculateDuplicateCountResult(contentSize, targetSize, props)
+    .duplicateCount;
 };
 
 export const calculateDuplicates = calculateDuplicateCount;
