@@ -20,6 +20,8 @@ import {
   getEffectiveBackgroundColor,
   getTargetSize,
   getMinSize,
+  hasUsableMeasurement,
+  normalizeMarqueeOptions,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
 
@@ -31,19 +33,28 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       children,
       className,
       dir = "left",
-      loop = -1,
+      loop: loopOption,
       paused = false,
-      delay = 0,
+      delay: delayOption,
       fill = false,
       scrollFollow = false,
-      scrollSpeed = 2.5,
+      scrollSpeed: scrollSpeedOption,
       gradient = false,
       gradientColor = null,
       pauseOnHover = false,
-      spacing = 16,
-      speed = 100,
+      spacing: spacingOption,
+      speed: speedOption,
       draggable = false,
     } = props;
+
+    const { delay, loop, scrollSpeed, spacing, speed } =
+      normalizeMarqueeOptions({
+        delay: delayOption,
+        loop: loopOption,
+        scrollSpeed: scrollSpeedOption,
+        spacing: spacingOption,
+        speed: speedOption,
+      });
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const marqueeRef = useRef<HTMLDivElement | null>(null);
@@ -184,7 +195,13 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           : contentElements[0].offsetLeft;
         let scrollObserver: Observer | null = null;
 
-        const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
+        if (
+          !hasUsableMeasurement(containerSize, contentSize, targetSize) ||
+          !Number.isFinite(startPosition)
+        ) {
+          return;
+        }
+
         const usesContentTrack = fill || isVertical;
 
         /**
@@ -205,24 +222,13 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           return;
         }
 
-        /**
-         * Timeline owns the continuous marquee movement. Reverse directions start
-         * from the end of the timeline so right/down movement loops correctly.
-         */
-        const timeline = gsap.timeline({
-          paused,
-          repeat: loop,
-          defaults: { ease: "none" },
-          onReverseComplete() {
-            timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
-          },
-        });
-
         const totalTrackSize = marqueeElements
           .map((element) =>
             isVertical ? element.offsetHeight : element.offsetWidth
           )
           .reduce((a, b) => a + b, 0);
+
+        if (!hasUsableMeasurement(totalTrackSize)) return;
 
         /**
          * Horizontal normal mode stretches undersized content across the
@@ -238,8 +244,30 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           flex: usesContentTrack ? "0 0 auto" : "1",
         });
 
+        const animatedElements = usesContentTrack
+          ? contentElements
+          : marqueeElements;
+        const animatedElementSizes = animatedElements.map((element) =>
+          isVertical ? element.offsetHeight : element.offsetWidth
+        );
+
+        if (!hasUsableMeasurement(...animatedElementSizes)) return;
+
+        /**
+         * Timeline owns the continuous marquee movement. It is created only
+         * after every required measurement has become finite and positive.
+         */
+        const timeline = gsap.timeline({
+          paused,
+          repeat: loop,
+          defaults: { ease: "none" },
+          onReverseComplete() {
+            timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
+          },
+        });
+
         const cleanupMarqueeAnimation = createMarqueeAnimation(
-          usesContentTrack ? contentElements : marqueeElements,
+          animatedElements,
           startPosition,
           timeline,
           isReverse,
@@ -249,6 +277,12 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           containerElement
         );
 
+        if (!hasUsableMeasurement(timeline.duration())) {
+          cleanupMarqueeAnimation?.();
+          timeline.kill();
+          return;
+        }
+
         if (scrollFollow) {
           scrollObserver = Observer.create({
             onChangeY(self) {
@@ -257,7 +291,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
                * The first tween gives an immediate response; the second eases
                * back to a steadier speed so scrolling does not feel abrupt.
                */
-              let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
+              let factor = scrollSpeed * (isReverse ? -1 : 1);
               if (self.deltaY < 0) {
                 factor *= -1;
               }
@@ -269,14 +303,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
                   },
                 })
                 .to(timeline, {
-                  timeScale: factor * clampedScrollSpeed,
+                  timeScale: factor * scrollSpeed,
                   duration: 0.2,
                   overwrite: true,
                 })
                 .to(
                   timeline,
                   {
-                    timeScale: factor / clampedScrollSpeed,
+                    timeScale: factor / scrollSpeed,
                     duration: 1,
                   },
                   "+=0.3"

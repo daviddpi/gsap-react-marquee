@@ -19,12 +19,19 @@ and this project adheres to
 - Added documented browser support targets and test-environment limitations.
 - Added the `release/0.4.0` milestone branch workflow and mandatory packed-package
   validation in a real consumer project before each merge.
+- Added centralized numeric option normalization and positive measurement guards.
+- Added browser regressions for zero-width, zero-height, and initially hidden
+  marquees that initialize after becoming measurable.
 
 ### Changed
 
 - Reordered package export conditions so TypeScript resolves the declaration
   entry point before runtime entries.
 - Updated repository ignore rules for generated test and package artifacts.
+- Invalid `speed`, `spacing`, `delay`, `scrollSpeed`, and `loop` values now use
+  documented finite fallbacks before reaching GSAP.
+- Timeline and drag initialization now wait for finite positive measurements;
+  invalid geometry cannot create negative or non-finite animation durations.
 
 ### Notes
 
@@ -32,6 +39,8 @@ and this project adheres to
   is unchanged.
 - GitHub Actions is intentionally not used. Node.js 20 is the verified Milestone
   0 baseline; Node.js 22 remains part of the manual `0.4.0` release matrix.
+- Numeric normalization is intentionally silent and does not emit repeated
+  runtime warnings.
 
 ## [0.3.2]
 

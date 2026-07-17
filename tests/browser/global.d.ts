@@ -7,6 +7,9 @@ declare global {
         options?: Omit<GSAPReactMarqueeProps, "children">
       ) => void;
       setContainerSize: (width: number, height: number) => void;
+      setContentSize: (width: number, height: number) => void;
+      setDisplay: (display: string) => void;
+      timelineCount: () => number;
       timelineDurations: () => number[];
     };
   }

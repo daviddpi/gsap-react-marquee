@@ -31,6 +31,8 @@ assert.deepEqual(
 );
 assert.equal(typeof esmExports.default, "object");
 assert.equal(typeof esmExports.calculateDuplicateCount, "function");
+assert.equal(typeof esmExports.hasUsableMeasurement, "function");
+assert.equal(typeof esmExports.normalizeMarqueeOptions, "function");
 
 const markup = renderToStaticMarkup(
   React.createElement(

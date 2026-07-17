@@ -14,6 +14,32 @@ if (!rootElement || !fixtureElement) {
 }
 
 const root = createRoot(rootElement);
+const searchParams = new URLSearchParams(window.location.search);
+
+const initialContentWidth = searchParams.get("contentWidth");
+const initialContentHeight = searchParams.get("contentHeight");
+if (initialContentWidth !== null) {
+  fixtureElement.style.setProperty(
+    "--fixture-content-width",
+    `${Number(initialContentWidth)}px`
+  );
+}
+if (initialContentHeight !== null) {
+  fixtureElement.style.setProperty(
+    "--fixture-content-height",
+    `${Number(initialContentHeight)}px`
+  );
+}
+if (searchParams.has("hidden")) fixtureElement.style.display = "none";
+
+const initialDirection = searchParams.get("dir");
+const initialOptions: FixtureOptions =
+  initialDirection === "left" ||
+  initialDirection === "right" ||
+  initialDirection === "up" ||
+  initialDirection === "down"
+    ? { dir: initialDirection }
+    : {};
 
 const renderFixture = (options: FixtureOptions = {}) => {
   root.render(
@@ -29,6 +55,16 @@ window.__marqueeFixture = {
     fixtureElement.style.width = `${width}px`;
     fixtureElement.style.height = `${height}px`;
   },
+  setContentSize(width: number, height: number) {
+    fixtureElement.style.setProperty("--fixture-content-width", `${width}px`);
+    fixtureElement.style.setProperty("--fixture-content-height", `${height}px`);
+  },
+  setDisplay(display: string) {
+    fixtureElement.style.display = display;
+  },
+  timelineCount() {
+    return gsap.globalTimeline.getChildren(true, false, true).length;
+  },
   timelineDurations() {
     return gsap.globalTimeline
       .getChildren(true, true, true)
@@ -36,4 +72,4 @@ window.__marqueeFixture = {
   },
 };
 
-renderFixture();
+renderFixture(initialOptions);

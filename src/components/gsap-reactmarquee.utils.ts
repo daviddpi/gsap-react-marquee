@@ -16,7 +16,84 @@ const CONTENT_SIZED_DIMENSIONS = new Set([
 
 const MAX_DUPLICATES = 15;
 
+const DEFAULT_DELAY = 0;
+const DEFAULT_LOOP = -1;
+const DEFAULT_SCROLL_SPEED = 2.5;
+const DEFAULT_SPACING = 16;
+const DEFAULT_SPEED = 100;
+const MIN_SCROLL_SPEED = 1.1;
+const MAX_SCROLL_SPEED = 4;
+
 type GSAPTimeline = ReturnType<typeof gsap.timeline>;
+
+export type NormalizedMarqueeOptions = {
+  delay: number;
+  loop: -1 | number;
+  scrollSpeed: number;
+  spacing: number;
+  speed: number;
+};
+
+type NumericMarqueeOptions = Pick<
+  GSAPReactMarqueeProps,
+  "delay" | "loop" | "scrollSpeed" | "spacing" | "speed"
+>;
+
+const isFiniteNumber = (value: number | undefined): value is number => {
+  return typeof value === "number" && Number.isFinite(value);
+};
+
+/**
+ * Normalizes every numeric option before it reaches layout or GSAP.
+ *
+ * Invalid values are intentionally handled silently. This keeps production
+ * output deterministic without producing repeated warnings during rerenders.
+ */
+export const normalizeMarqueeOptions = (
+  options: NumericMarqueeOptions
+): NormalizedMarqueeOptions => {
+  const speed =
+    isFiniteNumber(options.speed) && options.speed > 0
+      ? options.speed
+      : DEFAULT_SPEED;
+  const spacing =
+    isFiniteNumber(options.spacing) && options.spacing >= 0
+      ? options.spacing
+      : DEFAULT_SPACING;
+  const delay =
+    isFiniteNumber(options.delay) && options.delay >= 0
+      ? options.delay
+      : DEFAULT_DELAY;
+  const finiteScrollSpeed = isFiniteNumber(options.scrollSpeed)
+    ? options.scrollSpeed
+    : DEFAULT_SCROLL_SPEED;
+  const scrollSpeed = Math.min(
+    MAX_SCROLL_SPEED,
+    Math.max(MIN_SCROLL_SPEED, finiteScrollSpeed)
+  );
+  const loop =
+    options.loop === DEFAULT_LOOP ||
+    (isFiniteNumber(options.loop) &&
+      Number.isInteger(options.loop) &&
+      options.loop >= 0)
+      ? options.loop
+      : DEFAULT_LOOP;
+
+  return { delay, loop, scrollSpeed, spacing, speed };
+};
+
+/**
+ * Returns true only when every supplied layout measurement is finite and
+ * positive. Empty measurement sets are not usable.
+ */
+export const hasUsableMeasurement = (...measurements: number[]): boolean => {
+  return (
+    measurements.length > 0 &&
+    measurements.every(
+      (measurement) => Number.isFinite(measurement) && measurement > 0
+    )
+  );
+};
 
 const getRelativeOffset = (
   item: HTMLElement,
@@ -109,7 +186,7 @@ export const setupContainerStyles = (
   isVertical: boolean,
   props: GSAPReactMarqueeProps
 ) => {
-  const { spacing = 16 } = props;
+  const { spacing } = normalizeMarqueeOptions(props);
 
   gsap.set(containerElement, {
     gap: `${spacing}px`,
@@ -223,7 +300,7 @@ export const calculateDuplicateCount = (
 ): number => {
   const { fill = false } = props;
 
-  if (!fill || contentSize <= 0 || targetSize <= 0) return 1;
+  if (!fill || !hasUsableMeasurement(contentSize, targetSize)) return 1;
 
   const duplicateCount =
     contentSize < targetSize ? Math.ceil(targetSize / contentSize) : 1;
@@ -290,13 +367,8 @@ export const createMarqueeAnimation = (
   props: GSAPReactMarqueeProps,
   offsetContainer?: HTMLElement
 ): (() => void) | undefined => {
-  const {
-    spacing = 16,
-    speed = 100,
-    delay = 0,
-    paused = false,
-    draggable = false,
-  } = props;
+  const { spacing, speed, delay } = normalizeMarqueeOptions(props);
+  const { paused = false, draggable = false } = props;
 
   const lastIndex = items.length - 1;
   if (lastIndex < 0) return;
@@ -313,29 +385,36 @@ export const createMarqueeAnimation = (
         ? item.offsetTop
         : item.offsetLeft;
   const itemOffsets = items.map(getItemOffset);
+  if (!itemOffsets.every(Number.isFinite)) return;
 
   /**
    * Capture each item's current pixel offset and convert it to a percent offset.
    * GSAP can animate percentage transforms more robustly across responsive sizes.
    */
-  gsap.set(items, {
-    [percentProperty]: (index: number, item: HTMLElement) => {
-      const itemSize = parseFloat(
-        String(gsap.getProperty(item, sizeProperty, "px"))
-      );
-      const pixelOffset = parseFloat(
-        String(gsap.getProperty(item, positionProperty, "px"))
-      );
-      const percentOffset = Number(gsap.getProperty(item, percentProperty));
+  items.forEach((item, index) => {
+    const itemSize = Number.parseFloat(
+      String(gsap.getProperty(item, sizeProperty, "px"))
+    );
+    const pixelOffset = Number.parseFloat(
+      String(gsap.getProperty(item, positionProperty, "px"))
+    );
+    const percentOffset = Number(gsap.getProperty(item, percentProperty));
 
-      itemSizes[index] = itemSize;
-      initialPercents[index] = (pixelOffset / itemSize) * 100 + percentOffset;
-
-      return initialPercents[index];
-    },
+    itemSizes[index] = itemSize;
+    initialPercents[index] =
+      hasUsableMeasurement(itemSize) &&
+      Number.isFinite(pixelOffset) &&
+      Number.isFinite(percentOffset)
+        ? (pixelOffset / itemSize) * 100 + percentOffset
+        : Number.NaN;
   });
 
-  gsap.set(items, { [positionProperty]: 0 });
+  if (
+    !itemSizes.every((itemSize) => hasUsableMeasurement(itemSize)) ||
+    !initialPercents.every(Number.isFinite)
+  ) {
+    return;
+  }
 
   /**
    * Track length is the full distance an item travels before it can wrap back.
@@ -354,13 +433,63 @@ export const createMarqueeAnimation = (
     lastSize +
     spacing;
 
-  items.forEach((item, index) => {
+  if (
+    !Number.isFinite(effectiveStartPosition) ||
+    !hasUsableMeasurement(lastSize, trackLength)
+  ) {
+    return;
+  }
+
+  const segments = items.map((item, index) => {
     const itemSize = itemSizes[index];
     const currentPosition = (initialPercents[index] / 100) * itemSize;
     const itemOffset = itemOffsets[index];
     const distanceToStart =
       itemOffset + currentPosition - effectiveStartPosition;
     const distanceToLoop = distanceToStart + itemSize;
+    const returnDistance = trackLength - distanceToLoop;
+    const exitPercent = ((currentPosition - distanceToLoop) / itemSize) * 100;
+    const entryPercent =
+      ((currentPosition - distanceToLoop + trackLength) / itemSize) * 100;
+    const exitDuration = distanceToLoop / speed;
+    const returnDuration = returnDistance / speed;
+
+    if (
+      ![
+        currentPosition,
+        distanceToLoop,
+        returnDistance,
+        exitPercent,
+        entryPercent,
+        exitDuration,
+        returnDuration,
+      ].every(Number.isFinite) ||
+      distanceToLoop < 0 ||
+      returnDistance < 0 ||
+      exitDuration < 0 ||
+      returnDuration < 0
+    ) {
+      return null;
+    }
+
+    return {
+      entryPercent,
+      exitDuration,
+      exitPercent,
+      item,
+      returnDuration,
+    };
+  });
+
+  if (segments.some((segment) => segment === null)) return;
+
+  gsap.set(items, {
+    [percentProperty]: (index: number) => initialPercents[index],
+  });
+  gsap.set(items, { [positionProperty]: 0 });
+
+  segments.forEach((segment, index) => {
+    if (!segment) return;
 
     /**
      * First segment moves the item out of view. Second segment starts it at the
@@ -368,26 +497,24 @@ export const createMarqueeAnimation = (
      */
     timeline
       .to(
-        item,
+        segment.item,
         {
-          [percentProperty]:
-            ((currentPosition - distanceToLoop) / itemSize) * 100,
-          duration: distanceToLoop / speed,
+          [percentProperty]: segment.exitPercent,
+          duration: segment.exitDuration,
         },
         0
       )
       .fromTo(
-        item,
+        segment.item,
         {
-          [percentProperty]:
-            ((currentPosition - distanceToLoop + trackLength) / itemSize) * 100,
+          [percentProperty]: segment.entryPercent,
         },
         {
           [percentProperty]: initialPercents[index],
-          duration: (trackLength - distanceToLoop) / speed,
+          duration: segment.returnDuration,
           immediateRender: false,
         },
-        distanceToLoop / speed
+        segment.exitDuration
       );
   });
 

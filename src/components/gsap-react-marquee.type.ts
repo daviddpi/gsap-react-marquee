@@ -19,7 +19,8 @@ export type GSAPReactMarqueeProps = {
   dir?: "right" | "left" | "up" | "down";
 
   /**
-   * @description Number of timeline repeats. Use -1 for infinite looping.
+   * @description Number of timeline repeats. Accepts integer -1 for infinite
+   * looping or an integer >= 0. Invalid values use -1.
    * @type {number}
    * @default -1
    */
@@ -33,14 +34,16 @@ export type GSAPReactMarqueeProps = {
   paused?: boolean;
 
   /**
-   * @description Delay before the animation starts, in seconds.
+   * @description Delay before the animation starts, in seconds. Negative or
+   * non-finite values use 0.
    * @type {number}
    * @default 0
    */
   delay?: number;
 
   /**
-   * @description Animation speed in pixels per second.
+   * @description Animation speed in pixels per second. Zero, negative, or
+   * non-finite values use 100.
    * @type {number}
    * @default 100
    */
@@ -74,7 +77,8 @@ export type GSAPReactMarqueeProps = {
   gradientColor?: string;
 
   /**
-   * @description Gap between repeated marquee items, in pixels.
+   * @description Gap between repeated marquee items, in pixels. Negative or
+   * non-finite values use 16.
    * @type {number}
    * @default 16
    */
@@ -95,7 +99,8 @@ export type GSAPReactMarqueeProps = {
   scrollFollow?: boolean;
 
   /**
-   * @description Speed multiplier used by scrollFollow. The runtime clamps it between 1.1 and 4.
+   * @description Speed multiplier used by scrollFollow. Finite values are
+   * clamped between 1.1 and 4; non-finite values use 2.5.
    * @type {number}
    * @default 2.5
    */

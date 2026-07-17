@@ -446,45 +446,68 @@ Do not scatter these checks across event handlers.
 
 ### Implementation Tasks
 
-- [ ] Add `normalizeMarqueeOptions` or an equivalently named pure helper.
-- [ ] Normalize once before constructing measurement and animation options.
-- [ ] Ensure all timeline duration calculations use normalized `speed`.
-- [ ] Add a pure `hasUsableMeasurement` guard for finite positive item and track
+- [x] Add `normalizeMarqueeOptions` or an equivalently named pure helper.
+- [x] Normalize once before constructing measurement and animation options.
+- [x] Ensure all timeline duration calculations use normalized `speed`.
+- [x] Add a pure `hasUsableMeasurement` guard for finite positive item and track
       dimensions.
-- [ ] If measurement is zero or invalid, do not create a timeline or Draggable
+- [x] If measurement is zero or invalid, do not create a timeline or Draggable
       instance.
-- [ ] Keep ResizeObserver active so a hidden or unloaded element can initialize
+- [x] Keep ResizeObserver active so a hidden or unloaded element can initialize
       later when dimensions become positive.
-- [ ] Guard `trackLength` before calculating `1 / trackLength` for drag.
-- [ ] Guard every percentage calculation against a zero item size.
-- [ ] Decide whether invalid values are silently normalized or emit one
-      development-only warning. If warnings are used, they must not repeat on
-      every render.
-- [ ] Preserve `console.warn` in distributed builds if runtime warnings are part
-      of the chosen behavior. Do not preserve only in source and strip in `dist`.
+- [x] Guard `trackLength` before calculating `1 / trackLength` for drag.
+- [x] Guard every percentage calculation against a zero item size.
+- [x] Normalize invalid values silently without recurring runtime warnings.
+- [x] Preserve the existing InertiaPlugin `console.warn` in distributed builds;
+      numeric normalization does not introduce a new warning.
 
 ### Required Regression Tests
 
-- [ ] `speed={0}` does not produce an infinite duration.
-- [ ] Negative speed falls back to `100`.
-- [ ] `speed={NaN}` and `speed={Infinity}` fall back to `100`.
-- [ ] Negative or non-finite spacing falls back to `16`.
-- [ ] Negative or non-finite delay falls back to `0`.
-- [ ] Invalid scroll speed falls back and then clamps correctly.
-- [ ] Fractional, less-than-`-1`, `NaN`, and infinite loop values fall back to
+- [x] `speed={0}` does not produce an infinite duration.
+- [x] Negative speed falls back to `100`.
+- [x] `speed={NaN}` and `speed={Infinity}` fall back to `100`.
+- [x] Negative or non-finite spacing falls back to `16`.
+- [x] Negative or non-finite delay falls back to `0`.
+- [x] Invalid scroll speed falls back and then clamps correctly.
+- [x] Fractional, less-than-`-1`, `NaN`, and infinite loop values fall back to
       `-1`.
-- [ ] Zero-width horizontal content creates no timeline until it becomes wider.
-- [ ] Zero-height vertical content creates no timeline until it becomes taller.
-- [ ] A container initially under `display:none` initializes after becoming
+- [x] Zero-width horizontal content creates no timeline until it becomes wider.
+- [x] Zero-height vertical content creates no timeline until it becomes taller.
+- [x] A container initially under `display:none` initializes after becoming
       visible.
-- [ ] No generated GSAP child tween has a negative or non-finite duration.
+- [x] No generated GSAP child tween has a negative or non-finite duration.
 
 ### Acceptance Criteria
 
-- [ ] All numeric normalization tests pass.
-- [ ] Browser tests prove delayed initialization after a zero measurement.
-- [ ] No division by zero remains in the animation path.
-- [ ] Default valid prop behavior is unchanged.
+- [x] All numeric normalization tests pass.
+- [x] Browser tests prove delayed initialization after a zero measurement.
+- [x] No division by zero remains in the animation path.
+- [x] Default valid prop behavior is unchanged.
+
+### Consumer-Project Manual Validation
+
+Before merging M1, install its packed tarball in the real consumer project and
+verify all of the following:
+
+- [ ] A default marquee and a marquee with valid numeric props still animate as
+      before M1.
+- [ ] `speed={0}`, negative speed, `NaN`, and `Infinity` do not freeze the page
+      or create console errors; the marquee uses the default speed.
+- [ ] Invalid `spacing` and `delay` values use their documented defaults without
+      broken layout or delayed startup.
+- [ ] Invalid `scrollSpeed` values remain finite while `scrollFollow` is active.
+- [ ] Invalid fractional, negative, `NaN`, and infinite `loop` values fall back
+      to infinite looping.
+- [ ] Content that starts at zero width or height begins animating after it gains
+      a positive size, without remounting the marquee.
+- [ ] A marquee mounted inside `display:none` begins animating after its wrapper
+      becomes visible.
+- [ ] The consumer development console, production build, and SSR path show no
+      new errors or hydration failures.
+
+Known vertical fill behavior belongs to M2, and controlled hover/drag pause
+behavior belongs to M3. Do not block M1 on those already-tracked bugs unless M1
+introduces a new regression in them.
 
 ---
 
