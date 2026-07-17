@@ -888,3 +888,249 @@ test("StrictMode leaves one timeline and one scroll observer", async ({
     )
     .toBe(false);
 });
+
+test("client clones are hidden, inert, and sanitized", async ({ page }) => {
+  await page.goto("/?content=accessibility");
+  await expect.poll(() => marqueeItems(page).count()).toBe(2);
+
+  const result = await page.evaluate(() => {
+    const clone = document.querySelector<HTMLElement>(
+      "[data-gsap-react-marquee-clone]"
+    );
+    const form = document.querySelector<HTMLFormElement>("#fixture-form");
+    if (!clone || !form) throw new Error("Accessibility fixture is missing");
+
+    return {
+      ariaHidden: clone.getAttribute("aria-hidden"),
+      cloneIdCount: clone.querySelectorAll("[id]").length,
+      cloneNameCount: clone.querySelectorAll("[name]").length,
+      cloneReferenceCount: clone.querySelectorAll(
+        "[for], [form], [aria-labelledby], [href^='#'], [clip-path*='url(#']"
+      ).length,
+      formValues: new FormData(form).getAll("email"),
+      inert: clone.hasAttribute("inert"),
+      originalIdCount: document.querySelectorAll("#fixture-input").length,
+      unsafeCloneTabStops: Array.from(
+        clone.querySelectorAll<HTMLElement>(
+          "a, button, input, select, textarea, [tabindex]"
+        )
+      ).filter((element) => element.tabIndex >= 0).length,
+    };
+  });
+
+  expect(result).toEqual({
+    ariaHidden: "true",
+    cloneIdCount: 0,
+    cloneNameCount: 0,
+    cloneReferenceCount: 0,
+    formValues: ["original"],
+    inert: true,
+    originalIdCount: 1,
+    unsafeCloneTabStops: 0,
+  });
+});
+
+test("native inert leaves no visual-clone focus target", async ({ page }) => {
+  await expect.poll(() => marqueeItems(page).count()).toBe(2);
+  const nativeInert = await page.evaluate(
+    () => "inert" in HTMLElement.prototype
+  );
+  expect(nativeInert).toBe(true);
+
+  const cloneFocused = await page.evaluate(() => {
+    const cloneButton = document.querySelector<HTMLButtonElement>(
+      "[data-gsap-react-marquee-clone] button"
+    );
+    cloneButton?.focus();
+    return Boolean(
+      cloneButton &&
+        document.activeElement === cloneButton &&
+        cloneButton.closest("[data-gsap-react-marquee-clone]")
+    );
+  });
+  expect(cloneFocused).toBe(false);
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator("[data-gsap-react-marquee-original] button")).toBeFocused();
+  await page.keyboard.press("Tab");
+  expect(
+    await page.evaluate(() =>
+      Boolean(
+        document.activeElement?.closest("[data-gsap-react-marquee-clone]")
+      )
+    )
+  ).toBe(false);
+});
+
+test("forced no-native-inert fallback blocks pointer and programmatic focus", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "inert");
+  });
+  await page.goto("/");
+  await expect.poll(() => marqueeItems(page).count()).toBe(2);
+  expect(
+    await page.evaluate(() => "inert" in HTMLElement.prototype)
+  ).toBe(false);
+
+  const fallbackState = await page.evaluate(() => {
+    const clone = document.querySelector<HTMLElement>(
+      "[data-gsap-react-marquee-clone]"
+    );
+    const cloneButton = clone?.querySelector<HTMLButtonElement>("button");
+    cloneButton?.focus();
+
+    return {
+      cloneFocused: document.activeElement === cloneButton,
+      fallbackMarked: clone?.hasAttribute(
+        "data-gsap-react-marquee-inert-fallback"
+      ),
+      pointerEvents: clone ? getComputedStyle(clone).pointerEvents : null,
+      tabIndex: cloneButton?.tabIndex,
+    };
+  });
+
+  expect(fallbackState).toEqual({
+    cloneFocused: false,
+    fallbackMarked: true,
+    pointerEvents: "none",
+    tabIndex: -1,
+  });
+});
+
+test("clone safety reruns after child changes and warns once", async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "warning" &&
+      message.text().includes("presentational children only")
+    ) {
+      warnings.push(message.text());
+    }
+  });
+  await page.goto("/?content=presentational");
+  await expect.poll(() => marqueeItems(page).count()).toBe(2);
+
+  await page.evaluate(() =>
+    window.__marqueeFixture.setContentVariant("accessibility")
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const clone = document.querySelector(
+          "[data-gsap-react-marquee-clone]"
+        );
+        return clone?.querySelectorAll("[id], [name]").length;
+      })
+    )
+    .toBe(0);
+
+  await page.evaluate(() => {
+    window.__marqueeFixture.setContentVariant("presentational");
+    window.__marqueeFixture.setContentVariant("accessibility");
+  });
+  await expect.poll(() => warnings.length).toBe(1);
+});
+
+test("reduced motion stays static and reacts to preference changes", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await expect(page.locator("[data-gsap-react-marquee-original]")).toBeVisible();
+  await expect.poll(() => marqueeItems(page).count()).toBe(1);
+  expect(await page.evaluate(() => window.__marqueeFixture.resourceCounts())).toEqual({
+    baseTimelines: 0,
+    observers: 0,
+    taggedAnimations: 0,
+  });
+
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 1, observers: 0, taggedAnimations: 1 });
+  await expect.poll(() => marqueeItems(page).count()).toBe(2);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 0, observers: 0, taggedAnimations: 0 });
+  await expect.poll(() => marqueeItems(page).count()).toBe(1);
+});
+
+test("respectReducedMotion=false restores controlled animation", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      draggable: true,
+      paused: true,
+      respectReducedMotion: false,
+      scrollFollow: true,
+    });
+  });
+
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 1, observers: 1, taggedAnimations: 1 });
+  expect(
+    await page.evaluate(
+      () => window.__marqueeFixture.baseTimelineState()?.paused
+    )
+  ).toBe(true);
+});
+
+test("container props keep root semantics and user handlers", async ({ page }) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      containerProps: {
+        "aria-label": "Partner logos",
+        "data-marquee": "partners",
+        onClick() {
+          document.body.dataset.marqueeClicked = "true";
+        },
+        onFocus() {
+          document.body.dataset.marqueeFocused = "true";
+        },
+        onPointerEnter() {
+          document.body.dataset.marqueeEntered = "true";
+        },
+        role: "region",
+      },
+      pauseOnHover: true,
+    });
+  });
+
+  const root = page.locator(".gsap-react-marquee-container");
+  await expect(root).toHaveAttribute("aria-label", "Partner logos");
+  await expect(root).toHaveAttribute("data-marquee", "partners");
+  await expect(root).toHaveAttribute("role", "region");
+  await expect(page.locator('[aria-label="Partner logos"]')).toHaveCount(1);
+  await root.click({ position: { x: 1, y: 1 } });
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-marquee-clicked",
+    "true"
+  );
+
+  await root.hover();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-marquee-entered",
+    "true"
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(true);
+
+  await page.locator("[data-gsap-react-marquee-original] button").focus();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-marquee-focused",
+    "true"
+  );
+});

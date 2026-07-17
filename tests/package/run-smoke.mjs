@@ -34,15 +34,29 @@ assert.equal(typeof esmExports.calculateDuplicateCount, "function");
 assert.equal(typeof esmExports.hasUsableMeasurement, "function");
 assert.equal(typeof esmExports.normalizeMarqueeOptions, "function");
 
-const markup = renderToStaticMarkup(
-  React.createElement(
-    esmExports.default,
-    null,
-    React.createElement("span", null, "SSR package smoke")
-  )
-);
+const serverWarnings = [];
+const originalConsoleError = console.error;
+console.error = (...messages) => serverWarnings.push(messages.join(" "));
+let markup;
+try {
+  markup = renderToStaticMarkup(
+    React.createElement(
+      esmExports.default,
+      null,
+      React.createElement("span", { id: "ssr-package-content" }, "SSR package smoke")
+    )
+  );
+} finally {
+  console.error = originalConsoleError;
+}
 assert.match(markup, /SSR package smoke/);
 assert.match(markup, /gsap-react-marquee-container/);
+assert.equal(
+  (markup.match(/id="ssr-package-content"/g) ?? []).length,
+  1,
+  "SSR output must contain one semantic original"
+);
+assert.equal(serverWarnings.length, 0, "SSR render must not emit warnings");
 
 const tscPath = require.resolve("typescript/bin/tsc");
 const typecheck = spawnSync(

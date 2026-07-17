@@ -962,77 +962,77 @@ React trees. The agent must not redesign the public API midway through M4.
 Do not assume native `inert` support across every browser the package may claim
 to support.
 
-- [ ] Define and document the supported browser baseline before closing M4.
-- [ ] Feature-detect native support on the client with an SSR-safe check
+- [x] Define and document the supported browser baseline before closing M4.
+- [x] Feature-detect native support on the client with an SSR-safe check
       equivalent to `"inert" in HTMLElement.prototype`.
-- [ ] Use native `inert` when available.
-- [ ] Always set `aria-hidden="true"`; it remains required even with native
+- [x] Use native `inert` when available.
+- [x] Always set `aria-hidden="true"`; it remains required even with native
       `inert`.
-- [ ] Add clone CSS that disables pointer interaction.
-- [ ] Without native `inert`, set `tabindex="-1"` on focusable clone descendants
+- [x] Add clone CSS that disables pointer interaction.
+- [x] Without native `inert`, set `tabindex="-1"` on focusable clone descendants
       and remove form `name` participation.
-- [ ] Add a focus-in safety handler for a programmatic focus that enters a visual
+- [x] Add a focus-in safety handler for a programmatic focus that enters a visual
       clone in a non-native-inert browser.
-- [ ] Test the fallback path independently from the native path.
-- [ ] Do not hand-roll a general inert polyfill. If the declared browser baseline
+- [x] Test the fallback path independently from the native path.
+- [x] Do not hand-roll a general inert polyfill. If the declared browser baseline
       requires complete inert semantics beyond this clone-specific fallback, use
       a maintained polyfill and record its bundle cost.
 
 ### Reduced Motion
 
-- [ ] Default `respectReducedMotion` to true.
-- [ ] Subscribe to `(prefers-reduced-motion: reduce)` using a cleanup-safe media
+- [x] Default `respectReducedMotion` to true.
+- [x] Subscribe to `(prefers-reduced-motion: reduce)` using a cleanup-safe media
       query listener.
-- [ ] Under reduced motion, render one static original and create no GSAP
+- [x] Under reduced motion, render one static original and create no GSAP
       timeline, Observer, or Draggable instance.
-- [ ] React to preference changes without reloading.
-- [ ] Explicit `respectReducedMotion={false}` may restore animation.
-- [ ] Controlled `paused` remains valid regardless of motion preference.
+- [x] React to preference changes without reloading.
+- [x] Explicit `respectReducedMotion={false}` may restore animation.
+- [x] Controlled `paused` remains valid regardless of motion preference.
 
 ### Implementation Tasks
 
-- [ ] Add typed root container attributes.
-- [ ] Merge user and internal event handlers without losing either.
-- [ ] Make clones inaccessible and inert, with the explicit feature-detected
+- [x] Add typed root container attributes.
+- [x] Merge user and internal event handlers without losing either.
+- [x] Make clones inaccessible and inert, with the explicit feature-detected
       fallback defined above.
-- [ ] Add the clone-safety layout pass for IDs, ID references, form names, and
+- [x] Add the clone-safety layout pass for IDs, ID references, form names, and
       focusable descendants.
-- [ ] Add one development warning for content outside the presentational-only
+- [x] Add one development warning for content outside the presentational-only
       contract.
-- [ ] Prevent clone form controls from affecting form submission even though
+- [x] Prevent clone form controls from affecting form submission even though
       interactive children are unsupported.
-- [ ] Prevent duplicate IDs in initial SSR markup.
-- [ ] Add reduced-motion subscription and cleanup.
-- [ ] Extend pause-on-hover behavior to focus while retaining controlled pause.
-- [ ] Document the presentational-only child contract and deferred interactive
+- [x] Prevent duplicate IDs in initial SSR markup.
+- [x] Add reduced-motion subscription and cleanup.
+- [x] Extend pause-on-hover behavior to focus while retaining controlled pause.
+- [x] Document the presentational-only child contract and deferred interactive
       support.
 
 ### Required Regression Tests
 
-- [ ] SSR with a child ID contains that ID once.
-- [ ] SSR with a button contains one accessible button.
-- [ ] Client clones have `aria-hidden` and inert semantics.
-- [ ] Tab navigation reaches only the original interactive child.
-- [ ] Cloned form inputs do not add submitted values.
-- [ ] Unsupported interactive or ID-bearing content emits one development warning.
-- [ ] The native-inert path leaves no clone focus target.
-- [ ] The forced no-native-inert fallback leaves no sequential clone focus target.
-- [ ] Programmatic focus entering a fallback clone is removed or redirected.
-- [ ] Clone IDs, ID references, and form names are sanitized after client clone
+- [x] SSR with a child ID contains that ID once.
+- [x] SSR with a button contains one accessible button.
+- [x] Client clones have `aria-hidden` and inert semantics.
+- [x] Tab navigation reaches only the original interactive child.
+- [x] Cloned form inputs do not add submitted values.
+- [x] Unsupported interactive or ID-bearing content emits one development warning.
+- [x] The native-inert path leaves no clone focus target.
+- [x] The forced no-native-inert fallback leaves no sequential clone focus target.
+- [x] Programmatic focus entering a fallback clone is removed or redirected.
+- [x] Clone IDs, ID references, and form names are sanitized after client clone
       creation.
-- [ ] No duplicate root-level ARIA label is generated.
-- [ ] Reduced motion creates no timeline or plugin instance.
-- [ ] Changing reduced motion at runtime tears down or initializes animation once.
-- [ ] `respectReducedMotion={false}` preserves normal animation.
-- [ ] User-provided `aria-label`, `role`, and `data-*` container props survive.
+- [x] No duplicate root-level ARIA label is generated.
+- [x] Reduced motion creates no timeline or plugin instance.
+- [x] Changing reduced motion at runtime tears down or initializes animation once.
+- [x] `respectReducedMotion={false}` preserves normal animation.
+- [x] User-provided `aria-label`, `role`, and `data-*` container props survive.
 
 ### Acceptance Criteria
 
-- [ ] Automated accessibility checks report no duplicate interactive clones.
-- [ ] Reduced-motion behavior is static by default.
-- [ ] SSR and hydration produce no warning.
-- [ ] The supported browser baseline and no-native-inert fallback are documented.
-- [ ] The presentational-only child contract is explicit in README, generated API
+- [x] Automated accessibility checks report no duplicate interactive clones.
+- [x] Reduced-motion behavior is static by default.
+- [x] SSR and hydration produce no warning.
+- [x] The supported browser baseline and no-native-inert fallback are documented.
+- [x] The presentational-only child contract is explicit in README, generated API
       documentation, and release notes.
 
 ---

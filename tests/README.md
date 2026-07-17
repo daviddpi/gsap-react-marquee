@@ -11,8 +11,8 @@
 Chromium is the primary browser test target. Playwright WebKit is a required
 local compatibility signal for Safari-facing behavior, but it does not exactly
 emulate an old Safari release. Safari 14.1 does not provide native `inert`;
-Milestone 4 must therefore force and test the documented no-native-`inert`
-fallback.
+the browser suite therefore forces and tests the documented no-native-`inert`
+fallback independently from the native path.
 
 ## Test layers
 

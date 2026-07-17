@@ -74,6 +74,11 @@
   flex: 1;
 }
 
+.gsap-react-marquee-clone,
+.gsap-react-marquee-clone * {
+  pointer-events: none;
+}
+
 .gsap-react-marquee-content {
   width: max-content;
   line-height: 100%;

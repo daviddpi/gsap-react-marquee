@@ -3,7 +3,6 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -11,6 +10,7 @@ import {
   getTargetSize,
   hasUsableMeasurement,
 } from "./gsap-reactmarquee.utils";
+import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 
 export const MEASUREMENT_PIXEL_TOLERANCE = 0.5;
 
@@ -218,7 +218,7 @@ export const useMarqueeMeasurement = ({
     [acceptExternalMeasurement, isVertical, rootRef]
   );
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!isApplyingMeasuredClonesRef.current) return;
 
     const container = rootRef.current;
@@ -237,7 +237,7 @@ export const useMarqueeMeasurement = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, [duplicateCount, isVertical, rootRef]);
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const container = rootRef.current;
     if (!container) return;
 

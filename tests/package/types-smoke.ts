@@ -9,10 +9,12 @@ import GSAPReactMarquee, {
 const props: GSAPReactMarqueeProps = {
   children: "typed child",
   containerClassName: "typed-root",
+  containerProps: { "aria-label": "Typed marquee", role: "region" },
   containerStyle: { height: 320 },
   dir: "left",
   fill: false,
   maxDuplicates: 50,
+  respectReducedMotion: true,
 };
 
 const duplicateCount: number = calculateDuplicateCount(100, 500, props);
