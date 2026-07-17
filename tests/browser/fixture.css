@@ -3,6 +3,10 @@ body {
   margin: 0;
 }
 
+#fixture-form {
+  margin: 0;
+}
+
 #fixture {
   width: 640px;
   height: 160px;

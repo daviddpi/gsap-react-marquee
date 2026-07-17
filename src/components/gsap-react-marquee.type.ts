@@ -1,4 +1,12 @@
-import type { CSSProperties, ReactNode } from "react";
+import type {
+  ComponentPropsWithoutRef,
+  CSSProperties,
+  ReactNode,
+} from "react";
+
+type DataAttributes = {
+  [attribute: `data-${string}`]: boolean | number | string | undefined;
+};
 
 export type GSAPReactMarqueeProps = {
   /**
@@ -23,6 +31,17 @@ export type GSAPReactMarqueeProps = {
   containerStyle?: CSSProperties;
 
   /**
+   * @description Additional attributes and event handlers applied to the root
+   * viewport. Children, className, style, ref, and dangerouslySetInnerHTML use
+   * dedicated component APIs and cannot be supplied here.
+   */
+  containerProps?: Omit<
+    ComponentPropsWithoutRef<"div">,
+    "children" | "className" | "style" | "ref" | "dangerouslySetInnerHTML"
+  > &
+    DataAttributes;
+
+  /**
    * @description Direction of the marquee movement.
    * @type {"right" | "left" | "up" | "down"}
    * @default "left"
@@ -43,6 +62,14 @@ export type GSAPReactMarqueeProps = {
    * @default false
    */
   paused?: boolean;
+
+  /**
+   * @description Show one static original and create no animation resources
+   * when the user requests reduced motion.
+   * @type {boolean}
+   * @default true
+   */
+  respectReducedMotion?: boolean;
 
   /**
    * @description Delay before the animation starts, in seconds. Negative or

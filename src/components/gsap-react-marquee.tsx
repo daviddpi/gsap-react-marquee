@@ -6,13 +6,18 @@ import {
   type MutableRefObject,
   forwardRef,
   useCallback,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import "./gsap-react-marquee.style.css";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
+import {
+  hasUnsupportedMarqueeContent,
+  installMarqueeCloneFocusGuard,
+  sanitizeMarqueeClones,
+  supportsNativeInert,
+} from "./marquee-accessibility";
 import {
   calculateDuplicateCount,
   calculateDuplicateCountResult,
@@ -26,6 +31,8 @@ import {
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
 import { useMarqueeMeasurement } from "./use-marquee-measurement";
+import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
+import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 
 gsap.registerPlugin(useGSAP, Observer, InertiaPlugin, Draggable);
 
@@ -40,6 +47,14 @@ const warnDuplicateLimit = (
   ]);
 };
 
+const warnUnsupportedContent = () => {
+  if (process.env.NODE_ENV === "production") return;
+
+  Reflect.apply(console.warn, console, [
+    "GSAPReactMarquee: 0.4.0 supports presentational children only. Interactive children and stable IDs are unsupported; visual clones are sanitized for safety.",
+  ]);
+};
+
 const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
   (props, ref) => {
     const {
@@ -47,9 +62,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       className,
       containerClassName,
       containerStyle,
+      containerProps,
       dir = "left",
       loop: loopOption,
       paused = false,
+      respectReducedMotion = true,
       delay: delayOption,
       fill = false,
       maxDuplicates: maxDuplicatesOption,
@@ -75,13 +92,17 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const marqueeRef = useRef<HTMLDivElement | null>(null);
+    const prefersReducedMotion = usePrefersReducedMotion();
+    const shouldReduceMotion =
+      respectReducedMotion && prefersReducedMotion;
     const pausedRef = useRef(paused);
     pausedRef.current = paused;
-    const [duplicateCount, setDuplicateCount] = useState(1);
+    const [duplicateCount, setDuplicateCount] = useState(0);
     const [detectedGradientColor, setDetectedGradientColor] = useState<
       string | null
     >(null);
     const hasWarnedDuplicateLimitRef = useRef(false);
+    const hasWarnedUnsupportedContentRef = useRef(false);
 
     const setContainerRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -99,7 +120,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       [ref]
     );
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
       if (!gradient || !rootRef.current) return;
 
       const effectiveBackgroundColor = getEffectiveBackgroundColor(
@@ -108,12 +129,34 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       setDetectedGradientColor(effectiveBackgroundColor);
     }, [containerClassName, containerStyle, gradient]);
 
+    useIsomorphicLayoutEffect(() => {
+      if (
+        hasWarnedUnsupportedContentRef.current ||
+        !marqueeRef.current ||
+        !hasUnsupportedMarqueeContent(marqueeRef.current)
+      ) {
+        return;
+      }
+
+      hasWarnedUnsupportedContentRef.current = true;
+      warnUnsupportedContent();
+    }, [children]);
+
+    useIsomorphicLayoutEffect(() => {
+      const container = rootRef.current;
+      if (!container) return;
+
+      const nativeInert = supportsNativeInert();
+      sanitizeMarqueeClones(container, nativeInert);
+      return installMarqueeCloneFocusGuard(container, nativeInert);
+    }, [children, duplicateCount, shouldReduceMotion]);
+
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
     const shouldFill = fill;
     const usesContentTrack = fill || isVertical;
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
       const container = rootRef.current;
       if (!container) return;
 
@@ -159,7 +202,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       rootRef,
     });
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
+      if (shouldReduceMotion) {
+        setDuplicateCount((currentCount) =>
+          currentCount === 0 ? currentCount : 0
+        );
+        return;
+      }
+
       const snapshot = measurementSnapshotRef.current;
       const expectedAxis = isVertical ? "vertical" : "horizontal";
       if (!snapshot || snapshot.axis !== expectedAxis) return;
@@ -199,12 +249,20 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       measurementSnapshotRef,
       measurementVersion,
       shouldFill,
+      shouldReduceMotion,
       spacing,
     ]);
 
     useGSAP(
       (_, contextSafe) => {
-        if (!marqueeRef.current || !rootRef.current || !contextSafe) return;
+        if (
+          shouldReduceMotion ||
+          !marqueeRef.current ||
+          !rootRef.current ||
+          !contextSafe
+        ) {
+          return;
+        }
 
         const containerElement = rootRef.current;
         const measurementSnapshot =
@@ -470,6 +528,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           className,
           children,
           measurementVersion,
+          shouldReduceMotion,
         ],
         revertOnUpdate: true,
       }
@@ -492,19 +551,31 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
      * the additional copies needed for the current container/content size.
      */
     const clonedItems = useMemo(() => {
-      if (!Number.isFinite(duplicateCount) || duplicateCount <= 0) return null;
+      if (
+        shouldReduceMotion ||
+        !Number.isFinite(duplicateCount) ||
+        duplicateCount <= 0
+      ) {
+        return null;
+      }
 
       return Array.from({ length: duplicateCount }, (_, i) => (
-        <div key={i} className={cn("gsap-react-marquee")}>
+        <div
+          key={i}
+          aria-hidden="true"
+          className={cn("gsap-react-marquee", "gsap-react-marquee-clone")}
+          data-gsap-react-marquee-clone=""
+        >
           <div className={cn("gsap-react-marquee-content", className)}>
             {children}
           </div>
         </div>
       ));
-    }, [duplicateCount, className, children]);
+    }, [duplicateCount, className, children, shouldReduceMotion]);
 
     return (
       <div
+        {...containerProps}
         ref={setContainerRef}
         style={
           {
@@ -522,7 +593,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           containerClassName
         )}
       >
-        <div ref={marqueeRef} className={cn("gsap-react-marquee")}>
+        <div
+          ref={marqueeRef}
+          className={cn("gsap-react-marquee")}
+          data-gsap-react-marquee-original=""
+        >
           <div className={cn("gsap-react-marquee-content", className)}>
             {children}
           </div>

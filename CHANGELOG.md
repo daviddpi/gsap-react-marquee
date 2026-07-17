@@ -32,6 +32,12 @@ and this project adheres to
 - Added Milestone 3 unit and browser regressions for the complete direction and
   loop matrix, controlled pause interactions, drag release, scroll response,
   cleanup, and React StrictMode remounts.
+- Added `containerProps` for typed ARIA, `data-*`, and event attributes on the
+  root viewport.
+- Added `respectReducedMotion`, enabled by default, with live
+  `prefers-reduced-motion` updates and static single-original rendering.
+- Added native-`inert` and forced fallback accessibility regressions for clone
+  focus, forms, IDs, ID references, SSR, hydration, and root attributes.
 
 ### Changed
 
@@ -69,6 +75,15 @@ and this project adheres to
   state, and cannot override controlled `paused` behavior.
 - Timeline updates and unmounts now kill pending reverse delays, scroll response
   tweens, observers, timeline-targeting tweens, and Draggable resources.
+- Initial SSR output now contains only the semantic original; visual clones are
+  added after client measurement and marked `aria-hidden` and inert.
+- Visual clones now disable pointer interaction and sanitize IDs, ID references,
+  form names, and sequential focus targets. A focus guard covers browsers
+  without native `inert`.
+- Reduced motion now tears down clones, timelines, Observer, Draggable, and
+  related GSAP resources; disabling the preference restores normal controlled
+  behavior.
+- Layout effects now use an SSR-safe isomorphic boundary.
 
 ### Notes
 
@@ -80,6 +95,10 @@ and this project adheres to
   runtime warnings.
 - Milestone 2 was delivered in M2A/M2B phases. Vertical fill should use an
   explicitly constrained root height for predictable coverage.
+- `0.4.0` supports presentational marquee children. Interactive children,
+  stable child IDs, and ID-reference relationships remain unsupported and emit
+  one development warning; clone sanitization is defensive, not full
+  interactive-child support.
 
 ## [0.3.2]
 

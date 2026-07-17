@@ -8,6 +8,9 @@ declare global {
       ) => void;
       setContainerSize: (width: number, height: number) => void;
       setContentSize: (width: number, height: number) => void;
+      setContentVariant: (
+        variant: "accessibility" | "default" | "presentational"
+      ) => void;
       setDisplay: (display: string) => void;
       timelineCount: () => number;
       timelineDurations: () => number[];

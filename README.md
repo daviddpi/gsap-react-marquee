@@ -1,6 +1,6 @@
 # GSAP React Marquee
 
-`gsap-react-marquee` is a React marquee component powered by GSAP. It supports horizontal and vertical scrolling, seamless looping, optional fill mode, pause-on-hover, scroll-follow speed changes, draggable interaction, gradient overlays, and TypeScript types.
+`gsap-react-marquee` is a React marquee component powered by GSAP. It supports horizontal and vertical scrolling, seamless looping, optional fill mode, pause-on-hover, scroll-follow speed changes, draggable interaction, reduced-motion preferences, accessible visual clones, gradient overlays, and TypeScript types.
 
 ## Installation
 
@@ -82,6 +82,9 @@ When `gradient` is enabled, the component detects the nearest non-transparent ba
 </Marquee>
 ```
 
+`pauseOnHover` also pauses while keyboard focus is inside the marquee. Leaving
+with either pointer or focus cannot override a controlled `paused={true}`.
+
 ### Scroll-Follow
 
 `scrollFollow` changes the marquee timeline speed and direction based on vertical wheel movement.
@@ -123,6 +126,52 @@ export function Example() {
 }
 ```
 
+### Reduced Motion
+
+The component respects `prefers-reduced-motion: reduce` by default. It renders
+one static original and creates no GSAP timeline, Observer, or Draggable
+instance. Preference changes are applied without reloading the page.
+
+Use `respectReducedMotion={false}` only when motion remains appropriate for the
+content and audience:
+
+```tsx
+<Marquee respectReducedMotion={false}>
+  <span>Animation remains enabled</span>
+</Marquee>
+```
+
+### Accessibility and Child Content
+
+Version `0.4.0` supports presentational children such as text, images, and logo
+groups. Interactive controls, links, stable IDs, and ID-reference relationships
+inside repeated children are not supported. A future major version may add an
+explicit render-item API for interactive content.
+
+SSR output contains only the semantic original. After client measurement,
+visual clones receive `aria-hidden="true"`, native `inert` where available, and
+disabled pointer interaction. The Safari 14.1 fallback removes clone tab stops,
+form names, IDs, and ID-reference attributes and prevents programmatic focus
+from remaining inside a clone. Development builds warn once when unsupported
+child content is detected.
+
+Clone sanitization means ID-based CSS, fragment links, and SVG references inside
+repeated children may not survive. Keep those relationships outside marquee
+children.
+
+Use `containerProps` for root semantics and event handlers:
+
+```tsx
+<Marquee
+  containerProps={{
+    "aria-label": "Technology partners",
+    role: "region",
+  }}
+>
+  <span>Presentational partner logos</span>
+</Marquee>
+```
+
 ## Props
 
 | Prop | Type | Default | Description |
@@ -131,9 +180,11 @@ export function Example() {
 | `className` | `string` | `undefined` | Class applied to each `.gsap-react-marquee-content` element. |
 | `containerClassName` | `string` | `undefined` | Class applied only to the root viewport. |
 | `containerStyle` | `CSSProperties` | `undefined` | Inline styles applied to the root viewport. |
+| `containerProps` | root `div` attributes | `undefined` | ARIA, `data-*`, and event props applied to the root viewport. |
 | `dir` | `"left" \| "right" \| "up" \| "down"` | `"left"` | Direction of movement. |
 | `loop` | `number` | `-1` | Number of timeline repeats. `-1` means infinite. |
 | `paused` | `boolean` | `false` | Starts the timeline paused. |
+| `respectReducedMotion` | `boolean` | `true` | Shows one static original when reduced motion is requested. |
 | `delay` | `number` | `0` | Delay in seconds before the timeline starts. |
 | `speed` | `number` | `100` | Animation speed in pixels per second. |
 | `fill` | `boolean` | `false` | Repeats content enough times to cover the measured marquee area. |
@@ -148,7 +199,7 @@ export function Example() {
 
 ## How Sizing Works
 
-The component measures the root container and first content item after mount. It then creates enough cloned marquee items for the selected mode and starts a GSAP timeline.
+The component renders one semantic original during SSR, then measures the root container and first content item after client mount. It creates enough inaccessible visual clones for the selected mode and starts a GSAP timeline unless reduced motion is active.
 
 In normal mode (`fill={false}`), the component renders one original item plus one clone. This is suitable when your content is already large enough to create a continuous loop.
 
@@ -200,10 +251,20 @@ Required root layout styles remain controlled by the component. Width, height, c
 
 ## Runtime Notes
 
-- The component uses `useLayoutEffect`, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements, so it is intended for client-side rendering.
+- SSR safely renders one static original. Client measurement adds visual clones after hydration.
+- The animated lifecycle uses an isomorphic layout effect, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements.
 - In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
 - Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
 - Changing animation props such as `dir`, `speed`, `delay`, `fill`, `maxDuplicates`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+
+## Browser Support
+
+Supported targets are current and previous-major Chromium and Firefox releases,
+plus Safari and iOS Safari 14.1 or newer. Native `inert` is feature-detected.
+Safari versions without it use the clone-specific focus, form, and pointer
+fallback described above. Playwright Chromium and WebKit are the automated
+compatibility signals; WebKit does not exactly emulate every older Safari
+release.
 
 ## Troubleshooting
 

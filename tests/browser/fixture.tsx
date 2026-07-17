@@ -7,6 +7,7 @@ import type { GSAPReactMarqueeProps } from "../../src/components/gsap-react-marq
 import "./fixture.css";
 
 type FixtureOptions = Omit<GSAPReactMarqueeProps, "children">;
+type FixtureContentVariant = "accessibility" | "default" | "presentational";
 
 const rootElement = document.querySelector<HTMLDivElement>("#root");
 const fixtureElement = document.querySelector<HTMLDivElement>("#fixture");
@@ -82,6 +83,12 @@ if (initialContentHeight !== null) {
 if (searchParams.has("hidden")) fixtureElement.style.display = "none";
 
 const initialDirection = searchParams.get("dir");
+const initialContentVariant = searchParams.get("content");
+let contentVariant: FixtureContentVariant =
+  initialContentVariant === "accessibility" ||
+  initialContentVariant === "presentational"
+    ? initialContentVariant
+    : "default";
 const initialOptions: FixtureOptions =
   initialDirection === "left" ||
   initialDirection === "right" ||
@@ -90,14 +97,55 @@ const initialOptions: FixtureOptions =
     ? { dir: initialDirection }
     : {};
 
+let currentOptions: FixtureOptions = initialOptions;
+
+const renderContent = () => {
+  if (contentVariant === "presentational") {
+    return <span className="fixture-content">Presentational fixture</span>;
+  }
+
+  if (contentVariant === "accessibility") {
+    return (
+      <div className="fixture-content">
+        <label id="fixture-label" htmlFor="fixture-input">
+          Email
+        </label>
+        <input
+          aria-labelledby="fixture-label"
+          className="fixture-focus-target"
+          id="fixture-input"
+          name="email"
+          readOnly
+          value="original"
+        />
+        <a href="#fixture-input">Jump to email</a>
+        <svg aria-labelledby="fixture-svg-title">
+          <title id="fixture-svg-title">Decorative shape</title>
+          <defs>
+            <clipPath id="fixture-clip">
+              <rect height="10" width="10" />
+            </clipPath>
+          </defs>
+          <rect clipPath="url(#fixture-clip)" height="10" width="10" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixture-content">
+      <button className="fixture-focus-target" type="button">
+        Browser fixture
+      </button>
+    </div>
+  );
+};
+
 const renderFixture = (options: FixtureOptions = {}) => {
+  currentOptions = options;
   const marquee = (
     <GSAPReactMarquee {...options}>
-      <div className="fixture-content">
-        <button className="fixture-focus-target" type="button">
-          Browser fixture
-        </button>
-      </div>
+      {renderContent()}
     </GSAPReactMarquee>
   );
 
@@ -118,6 +166,10 @@ window.__marqueeFixture = {
   },
   setDisplay(display: string) {
     fixtureElement.style.display = display;
+  },
+  setContentVariant(variant: FixtureContentVariant) {
+    contentVariant = variant;
+    renderFixture(currentOptions);
   },
   timelineCount() {
     return gsap.globalTimeline.getChildren(true, false, true).length;
