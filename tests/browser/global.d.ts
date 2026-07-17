@@ -11,6 +11,26 @@ declare global {
       setDisplay: (display: string) => void;
       timelineCount: () => number;
       timelineDurations: () => number[];
+      baseTimelineState: () => {
+        active: boolean;
+        complete: number;
+        hasReverseContinuation: boolean;
+        paused: boolean;
+        progress: number;
+        repeat: number;
+        repeatValue: number;
+        reverseComplete: number;
+        reversed: boolean;
+        timeScale: number;
+        totalProgress: number;
+      } | null;
+      observeBaseTimeline: () => boolean;
+      resourceCounts: () => {
+        baseTimelines: number;
+        observers: number;
+        taggedAnimations: number;
+      };
+      unmount: () => void;
     };
   }
 }

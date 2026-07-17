@@ -13,10 +13,22 @@ const measureLoopGaps = async (
     );
     if (!root) throw new Error("Marquee root is missing");
 
-    const durations = window.__marqueeFixture
-      .timelineDurations()
-      .filter((duration) => Number.isFinite(duration) && duration > 0);
-    const cycleDuration = Math.max(...durations);
+    let cycleDuration = Number.NaN;
+    let stableDurationFrames = 0;
+    for (let frame = 0; frame < 60 && stableDurationFrames < 3; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const durations = window.__marqueeFixture
+        .timelineDurations()
+        .filter((duration) => Number.isFinite(duration) && duration > 0);
+      const nextDuration = Math.max(...durations);
+
+      if (Number.isFinite(nextDuration)) {
+        cycleDuration = nextDuration;
+        stableDurationFrames += 1;
+      } else {
+        stableDurationFrames = 0;
+      }
+    }
     if (!Number.isFinite(cycleDuration)) {
       return { cycleDuration, frames: 0, maxGap: Number.POSITIVE_INFINITY };
     }
@@ -429,4 +441,450 @@ test("duplicate ceiling stays finite and warns once in development", async ({
 
   expect(warnings).toHaveLength(1);
   expect(warnings[0]).toContain("maxDuplicates=3");
+});
+
+const directions = ["left", "right", "up", "down"] as const;
+
+for (const dir of directions) {
+  for (const loop of [0, 1, 2]) {
+    test(`${dir} finite loop=${loop} executes exactly ${loop + 1} cycles`, async ({
+      page,
+    }) => {
+      await page.evaluate(
+        ({ direction, repeat }) => {
+          window.__marqueeFixture.render({
+            delay: 0.15,
+            dir: direction,
+            loop: repeat,
+            speed: 2_000,
+          });
+        },
+        { direction: dir, repeat: loop }
+      );
+
+      await expect
+        .poll(() =>
+          page.evaluate(() => window.__marqueeFixture.observeBaseTimeline())
+        )
+        .toBe(true);
+
+      const isReverse = dir === "right" || dir === "down";
+      if (isReverse) {
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                window.__marqueeFixture.baseTimelineState()?.reverseComplete
+            )
+          )
+          .toBe(1);
+      } else {
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () => window.__marqueeFixture.baseTimelineState()?.complete
+            )
+          )
+          .toBe(1);
+      }
+
+      const state = await page.evaluate(() =>
+        window.__marqueeFixture.baseTimelineState()
+      );
+      expect(state).not.toBeNull();
+      expect(state?.repeat).toBe(loop);
+      expect(state?.repeatValue).toBe(loop);
+      expect(state?.active).toBe(false);
+      expect(state?.totalProgress).toBeCloseTo(isReverse ? 0 : 1, 5);
+    });
+  }
+
+  test(`${dir} infinite loop stays active across multiple cycles`, async ({
+    page,
+  }) => {
+    await page.evaluate((direction) => {
+      window.__marqueeFixture.render({
+        delay: 0.1,
+        dir: direction,
+        loop: -1,
+        speed: 2_000,
+      });
+    }, dir);
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.__marqueeFixture.observeBaseTimeline())
+      )
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => window.__marqueeFixture.baseTimelineState()?.repeat ?? 0
+        )
+      )
+      .toBeGreaterThanOrEqual(2);
+
+    const state = await page.evaluate(() =>
+      window.__marqueeFixture.baseTimelineState()
+    );
+    expect(state?.repeatValue).toBe(-1);
+    expect(state?.paused).toBe(false);
+    expect(state?.reversed).toBe(dir === "right" || dir === "down");
+  });
+}
+
+test("controlled pause survives pointer and focus enter/leave", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({ paused: true, pauseOnHover: true });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(true);
+
+  const root = page.locator(".gsap-react-marquee-container");
+  await root.dispatchEvent("pointerenter");
+  await root.dispatchEvent("pointerleave");
+  expect(
+    await page.evaluate(
+      () => window.__marqueeFixture.baseTimelineState()?.paused
+    )
+  ).toBe(true);
+
+  await page.locator(".fixture-focus-target").first().focus();
+  await page.locator("body").focus();
+  expect(
+    await page.evaluate(
+      () => window.__marqueeFixture.baseTimelineState()?.paused
+    )
+  ).toBe(true);
+});
+
+test("controlled pause changes resume in configured direction", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({ dir: "right", paused: true });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(true);
+
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({ dir: "right", paused: false });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = window.__marqueeFixture.baseTimelineState();
+        return Boolean(state && !state.paused && state.reversed);
+      })
+    )
+    .toBe(true);
+});
+
+test("scroll follow cannot resume controlled pause", async ({ page }) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      paused: true,
+      scrollFollow: true,
+      scrollSpeed: 3,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.resourceCounts().observers)
+    )
+    .toBe(1);
+
+  await page.mouse.move(100, 80);
+  await page.mouse.wheel(0, 200);
+  await page.waitForTimeout(100);
+
+  const state = await page.evaluate(() =>
+    window.__marqueeFixture.baseTimelineState()
+  );
+  expect(state?.paused).toBe(true);
+  expect(state?.timeScale).toBe(1);
+  expect(
+    await page.evaluate(
+      () => window.__marqueeFixture.resourceCounts().taggedAnimations
+    )
+  ).toBe(1);
+});
+
+test("scroll follow restores legacy boost then base direction", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      dir: "down",
+      scrollFollow: true,
+      scrollSpeed: 3,
+      speed: 500,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.resourceCounts().observers)
+    )
+    .toBe(1);
+
+  await page.mouse.move(100, 80);
+  await page.mouse.wheel(0, -200);
+  const peakTimeScale = await page.evaluate(async () => {
+    let peak = 0;
+    for (let frame = 0; frame < 20; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      peak = Math.max(
+        peak,
+        Math.abs(
+          window.__marqueeFixture.baseTimelineState()?.timeScale ?? 0
+        )
+      );
+    }
+    return peak;
+  });
+  expect(peakTimeScale).toBeGreaterThan(8);
+  expect(peakTimeScale).toBeLessThanOrEqual(9.1);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const state = window.__marqueeFixture.baseTimelineState();
+          return state
+            ? { reversed: state.reversed, timeScale: state.timeScale }
+            : null;
+        }),
+      { timeout: 3_000 }
+    )
+    .toEqual({ reversed: true, timeScale: -1 });
+});
+
+test("scroll reversal keeps a forward infinite timeline continuous", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      dir: "left",
+      loop: -1,
+      scrollFollow: true,
+      scrollSpeed: 3,
+      speed: 500,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.observeBaseTimeline())
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.__marqueeFixture.baseTimelineState()
+            ?.hasReverseContinuation
+      )
+    )
+    .toBe(true);
+
+  await page.mouse.move(100, 80);
+  await page.mouse.wheel(0, -200);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.__marqueeFixture.baseTimelineState()?.reverseComplete ?? 0
+      )
+    )
+    .toBeGreaterThan(0);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const state = window.__marqueeFixture.baseTimelineState();
+          return state
+            ? {
+                active: state.active,
+                reversed: state.reversed,
+                timeScale: state.timeScale,
+              }
+            : null;
+        }),
+      { timeout: 3_000 }
+    )
+    .toEqual({ active: true, reversed: false, timeScale: 1 });
+});
+
+test("changing paused during scroll kills response and stops playback", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      paused: false,
+      scrollFollow: true,
+      scrollSpeed: 3,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.resourceCounts().observers)
+    )
+    .toBe(1);
+
+  await page.mouse.move(100, 80);
+  await page.mouse.wheel(0, 200);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__marqueeFixture.resourceCounts().taggedAnimations
+      )
+    )
+    .toBeGreaterThan(1);
+
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      paused: true,
+      scrollFollow: true,
+      scrollSpeed: 3,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = window.__marqueeFixture.baseTimelineState();
+        return {
+          paused: state?.paused,
+          resources: window.__marqueeFixture.resourceCounts().taggedAnimations,
+          timeScale: state?.timeScale,
+        };
+      })
+    )
+    .toEqual({ paused: true, resources: 1, timeScale: 1 });
+});
+
+for (const reverseDirection of ["right", "down"] as const) {
+  test(`${reverseDirection} infinite reverse stays seamless for two cycles`, async ({
+    page,
+  }) => {
+    const vertical = reverseDirection === "down";
+    await page.evaluate(
+      ({ direction, isVertical }) => {
+        window.__marqueeFixture.setContainerSize(800, 320);
+        window.__marqueeFixture.render({
+          containerStyle: isVertical ? { height: "100%" } : undefined,
+          dir: direction,
+          fill: true,
+          speed: 2_000,
+        });
+      },
+      { direction: reverseDirection, isVertical: vertical }
+    );
+
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.__marqueeFixture
+            .timelineDurations()
+            .some((duration) => Number.isFinite(duration) && duration > 0)
+        )
+      )
+      .toBe(true);
+
+    const result = await measureLoopGaps(page, vertical);
+    expect(result.cycleDuration).toBeGreaterThan(0);
+    expect(result.frames).toBeGreaterThanOrEqual(8);
+    expect(result.maxGap).toBeLessThanOrEqual(18);
+  });
+}
+
+test("paused reverse marquee remains paused after drag release", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      dir: "right",
+      draggable: true,
+      paused: true,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(true);
+
+  const trigger = page.locator(".gsap-react-marquee").first();
+  const bounds = await trigger.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (!bounds) return;
+
+  await page.mouse.move(bounds.x + 100, bounds.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 40, bounds.y + 20, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+
+  expect(
+    await page.evaluate(
+      () => window.__marqueeFixture.baseTimelineState()?.paused
+    )
+  ).toBe(true);
+});
+
+test("unmount kills reverse delay, observer, and tagged timelines", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      delay: 1,
+      dir: "right",
+      scrollFollow: true,
+    });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.resourceCounts().baseTimelines)
+    )
+    .toBe(1);
+
+  await page.evaluate(() => window.__marqueeFixture.unmount());
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 0, observers: 0, taggedAnimations: 0 });
+});
+
+test("StrictMode leaves one timeline and one scroll observer", async ({
+  page,
+}) => {
+  await page.goto("/?strict=1");
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({
+      pauseOnHover: true,
+      scrollFollow: true,
+    });
+  });
+
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 1, observers: 1, taggedAnimations: 1 });
+
+  const root = page.locator(".gsap-react-marquee-container");
+  await root.dispatchEvent("pointerenter");
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(true);
+  await root.dispatchEvent("pointerleave");
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__marqueeFixture.baseTimelineState()?.paused)
+    )
+    .toBe(false);
 });

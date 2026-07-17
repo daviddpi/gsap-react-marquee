@@ -27,6 +27,11 @@ and this project adheres to
 - Added `containerClassName` and `containerStyle` for root viewport styling.
 - Added normalized `maxDuplicates` control with a default of `100`, an internal
   ceiling of `250`, and one development warning when the limit prevents fill.
+- Added focus-in and focus-out handling to `pauseOnHover` so keyboard focus uses
+  the same deterministic pause behavior as pointer hover.
+- Added Milestone 3 unit and browser regressions for the complete direction and
+  loop matrix, controlled pause interactions, drag release, scroll response,
+  cleanup, and React StrictMode remounts.
 
 ### Changed
 
@@ -47,6 +52,23 @@ and this project adheres to
 - Fill coverage now includes spacing and one complete wrap segment.
 - Root measurement now uses actual axis geometry instead of computed-style
   heuristics, and simultaneous external resize plus clone updates are preserved.
+- Finite reverse marquees now initialize from total timeline progress and run
+  exactly `loop + 1` cycles; infinite reverse marquees keep one continuation
+  callback and remain continuous.
+- Timeline play, reverse, and pause transitions now share one controlled-state
+  helper and re-check the latest `paused` value from delayed and interaction
+  callbacks.
+- Draggable now initializes while paused or reversed, restores controlled state
+  after releases with or without inertia, and kills inertia and proxy resources
+  during cleanup.
+- Scroll following now preserves the legacy `scrollSpeed²` transient boost,
+  keeps forward infinite timelines continuous during temporary reversal,
+  cannot resume a controlled pause, and restores the configured direction at
+  base `timeScale` after each response.
+- Hover handling now uses pointer events, coordinates pointer and keyboard focus
+  state, and cannot override controlled `paused` behavior.
+- Timeline updates and unmounts now kill pending reverse delays, scroll response
+  tweens, observers, timeline-targeting tweens, and Draggable resources.
 
 ### Notes
 
