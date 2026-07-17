@@ -2,7 +2,7 @@
 
 Status: approved for implementation planning
 
-Last updated: 2026-07-15
+Last updated: 2026-07-17
 
 Target package: `gsap-react-marquee`
 
@@ -71,7 +71,7 @@ These decisions are non-negotiable unless the user explicitly changes them.
 | PERF-01 | Medium | React effects | `children` identity can rebuild the timeline after unrelated parent renders. |
 | PERF-02 | Low | Bundle | GSAP interaction plugins and class utilities may load when unused. |
 | COMPAT-01 | Medium | Browser accessibility | Native `inert` cannot be assumed for every potential browser target. |
-| QUAL-01 | High risk | Verification | No unit tests, browser tests, lint command, or CI gate exists. |
+| QUAL-01 | High risk | Verification | No unit tests, browser tests, lint command, or repeatable verification gate exists. |
 | SEC-01 | High risk | Toolchain | The lockfile contains known high and moderate build-time advisories. |
 | DOC-01 | Medium | Documentation | README behavior differs from current vertical and fill semantics. |
 
@@ -192,14 +192,17 @@ Required flow:
 1. Create or check out `release/0.4.0` from the approved baseline.
 2. Create the active milestone branch from the current `release/0.4.0` HEAD.
 3. Implement only that milestone on its branch.
-4. Run the milestone checks and review the diff against this roadmap.
-5. Commit the milestone branch only when its checklist is green and commit
+4. Update `CHANGELOG.md` under `Unreleased` with every user-visible change,
+   internal change, test addition, documentation change, and known limitation
+   introduced by the milestone.
+5. Run the milestone checks and review the diff against this roadmap.
+6. Commit the milestone branch only when its checklist is green and commit
    authorization exists.
-6. Merge the milestone branch into `release/0.4.0`, preferably with
+7. Merge the milestone branch into `release/0.4.0`, preferably with
    `--no-ff` so milestone history remains visible.
-7. Run the integration checks on `release/0.4.0` before creating the next
+8. Run the integration checks on `release/0.4.0` before creating the next
    milestone branch.
-8. Repeat until M6 is merged and the final release gate passes.
+9. Repeat until M6 is merged and the final release gate passes.
 
 ### Consumer-Project Validation Before Every Merge
 
@@ -233,6 +236,7 @@ checklist tailored to the milestone and record the result in the handoff.
 
 Merge is blocked until all of the following are true:
 
+- [ ] `CHANGELOG.md` accurately records the milestone under `Unreleased`.
 - [ ] The package `.tgz` installs successfully in the consumer project.
 - [ ] The user has manually verified the milestone behavior in that project.
 - [ ] No regression is observed in the consumer project.
@@ -250,6 +254,7 @@ Branch rules:
 - [ ] A later milestone branch starts from the integration branch after all
       earlier milestone merges, never from stale `main`.
 - [ ] Never merge a milestone whose required checks are failing or skipped.
+- [ ] Never merge a milestone without its `CHANGELOG.md` update.
 - [ ] Resolve conflicts by preserving the confirmed decisions: controlled
       `paused` and direction-independent `fill`.
 - [ ] Do not delete milestone branches until the integration merge and checks
@@ -289,6 +294,8 @@ The roadmap is complete only when all of the following are true.
       dependency audit pass.
 - [ ] ESM, CommonJS, SSR import, and generated declaration entrypoints work.
 - [ ] README documents the actual supported behavior and constraints.
+- [ ] `CHANGELOG.md` contains every milestone change and its `Unreleased`
+      entries are finalized under version `0.4.0` with the release date.
 
 ## 6. Target Verification Commands
 
@@ -331,7 +338,8 @@ perform in one conversation.
 
 ### Goal
 
-Create a trustworthy test and CI foundation before changing animation behavior.
+Create a trustworthy local test and verification foundation before changing
+animation behavior.
 
 ### Scope
 
@@ -339,58 +347,61 @@ Create a trustworthy test and CI foundation before changing animation behavior.
 - `pnpm-lock.yaml`
 - new test configuration files
 - new `tests/` or equivalent directories
-- new `.github/workflows/` CI configuration
 - no intended production behavior changes
 
 ### Implementation Tasks
 
-- [ ] Add a `typecheck` script using `tsc --noEmit`.
-- [ ] Add a lint setup suitable for TypeScript and React hooks.
-- [ ] Add unit tests using Vitest or an equivalent established runner.
-- [ ] Add React rendering tests for markup and prop transitions.
-- [ ] Add real-browser tests using Playwright or an equivalent browser runner.
-- [ ] Create a minimal browser fixture that imports the package source or built
+- [x] Add a `typecheck` script using `tsc --noEmit`.
+- [x] Add a lint setup suitable for TypeScript and React hooks.
+- [x] Add unit tests using Vitest or an equivalent established runner.
+- [x] Add React rendering tests for markup and prop transitions.
+- [x] Add real-browser tests using Playwright or an equivalent browser runner.
+- [x] Create a minimal browser fixture that imports the package source or built
       package and can set exact viewport/container dimensions.
-- [ ] Add scripts named `test`, `test:watch`, and `test:browser`.
-- [ ] Add a top-level `check` script that runs typecheck, lint, and unit tests.
-- [ ] Add package smoke tests for:
+- [x] Add scripts named `test`, `test:watch`, and `test:browser`.
+- [x] Add a top-level `check` script that runs typecheck, lint, and unit tests.
+- [x] Add package smoke tests for:
   - ESM import;
   - CommonJS require;
   - generated type resolution;
   - SSR import and static render without `window` or `document` errors.
-- [ ] Add CI using a frozen lockfile.
-- [ ] Define the supported browser baseline, including the oldest WebKit/Safari
+- [x] Define a mandatory local verification flow using a frozen lockfile.
+- [x] Define the supported browser baseline, including the oldest WebKit/Safari
       target relevant to clone accessibility and `inert` behavior.
-- [ ] Run core checks on supported Node versions. Use Node 20 and Node 22 unless
-      dependency constraints require a documented change.
-- [ ] Run browser tests in at least one Chromium-based browser in CI.
-- [ ] Add a WebKit job or a forced no-native-inert fallback test when Safari is
-      part of the declared browser baseline.
-- [ ] Record a baseline browser screenshot or DOM measurement only where it is
+- [x] Run core checks on Node 20. Node 22 remains required in the final manual
+      release matrix unless dependency constraints require a documented change.
+- [x] Run browser tests locally in at least one Chromium-based browser.
+- [x] Run Playwright WebKit locally as the Safari compatibility signal. Add a
+      forced no-native-`inert` fallback test in M4.
+- [x] Record a baseline browser screenshot or DOM measurement only where it is
       stable and useful. Avoid brittle animation-frame snapshots.
 
 ### Baseline Tests That Must Pass Before M1
 
-- [ ] `calculateDuplicateCount` returns one visual duplicate when `fill=false`.
-- [ ] Current default horizontal marquee builds a finite GSAP timeline.
-- [ ] ESM and CommonJS package entrypoints expose the same public names.
-- [ ] SSR render does not throw.
-- [ ] Build output includes JavaScript and declaration entrypoints listed in
+- [x] `calculateDuplicateCount` returns one visual duplicate when `fill=false`.
+- [x] Current default horizontal marquee builds a finite GSAP timeline.
+- [x] ESM and CommonJS package entrypoints expose the same public names.
+- [x] SSR render does not throw.
+- [x] Build output includes JavaScript and declaration entrypoints listed in
       `package.json`.
 
 ### Acceptance Criteria
 
-- [ ] `pnpm run check` passes.
-- [ ] `pnpm run test:browser` passes.
-- [ ] `pnpm run build` passes.
-- [ ] CI configuration validates the same commands from a clean install.
-- [ ] No existing public API was removed.
+- [x] `pnpm run check` passes.
+- [x] `pnpm run test:browser` passes.
+- [x] `pnpm run test:browser:webkit` passes.
+- [x] `pnpm run test:package` passes.
+- [x] `pnpm run build` passes.
+- [x] A frozen install and the documented local verification commands pass.
+- [x] No existing public API was removed.
 
 ### Out of Scope
 
 - Fixing known animation bugs.
 - Updating all dependencies.
 - Changing clone or accessibility behavior.
+- Hosted CI and GitHub Actions. Verification is intentionally local and remains
+  mandatory before every milestone merge.
 
 ---
 

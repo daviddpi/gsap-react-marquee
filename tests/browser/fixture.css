@@ -1,0 +1,16 @@
+html,
+body {
+  margin: 0;
+}
+
+#fixture {
+  width: 640px;
+  height: 160px;
+  overflow: hidden;
+}
+
+.fixture-content {
+  box-sizing: border-box;
+  width: 160px;
+  height: 40px;
+}
