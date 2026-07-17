@@ -15,28 +15,43 @@ import "./gsap-react-marquee.style.css";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 import {
   calculateDuplicateCount,
+  calculateDuplicateCountResult,
   cn,
   createMarqueeAnimation,
   getEffectiveBackgroundColor,
-  getTargetSize,
   getMinSize,
   hasUsableMeasurement,
   normalizeMarqueeOptions,
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
+import { useMarqueeMeasurement } from "./use-marquee-measurement";
 
 gsap.registerPlugin(useGSAP, Observer, InertiaPlugin, Draggable);
+
+const warnDuplicateLimit = (
+  maxDuplicates: number,
+  requiredDuplicateCount: number
+) => {
+  if (process.env.NODE_ENV === "production") return;
+
+  Reflect.apply(console.warn, console, [
+    `GSAPReactMarquee: maxDuplicates=${maxDuplicates} prevents full fill coverage; ${requiredDuplicateCount} duplicates are required.`,
+  ]);
+};
 
 const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
   (props, ref) => {
     const {
       children,
       className,
+      containerClassName,
+      containerStyle,
       dir = "left",
       loop: loopOption,
       paused = false,
       delay: delayOption,
       fill = false,
+      maxDuplicates: maxDuplicatesOption,
       scrollFollow = false,
       scrollSpeed: scrollSpeedOption,
       gradient = false,
@@ -47,10 +62,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       draggable = false,
     } = props;
 
-    const { delay, loop, scrollSpeed, spacing, speed } =
+    const { delay, loop, maxDuplicates, scrollSpeed, spacing, speed } =
       normalizeMarqueeOptions({
         delay: delayOption,
         loop: loopOption,
+        maxDuplicates: maxDuplicatesOption,
         scrollSpeed: scrollSpeedOption,
         spacing: spacingOption,
         speed: speedOption,
@@ -62,7 +78,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     const [detectedGradientColor, setDetectedGradientColor] = useState<
       string | null
     >(null);
-    const [measurementVersion, setMeasurementVersion] = useState(0);
+    const hasWarnedDuplicateLimitRef = useRef(false);
 
     const setContainerRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -87,67 +103,118 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         rootRef.current
       );
       setDetectedGradientColor(effectiveBackgroundColor);
-    }, [gradient]);
+    }, [containerClassName, containerStyle, gradient]);
 
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
+    const shouldFill = fill;
+    const usesContentTrack = fill || isVertical;
 
-    /**
-     * Re-measure when layout can change after the first render
-     *
-     * Images and responsive content often report a different size after mount.
-     * ResizeObserver catches container/content changes, while image load/error
-     * events catch late media changes that should restart the GSAP timeline.
-     */
     useLayoutEffect(() => {
       const container = rootRef.current;
       if (!container) return;
 
-      const firstContentElement = container.querySelector(
-        ".gsap-react-marquee .gsap-react-marquee-content"
-      ) as HTMLElement | null;
+      const marqueeElements = Array.from(
+        container.querySelectorAll<HTMLElement>(".gsap-react-marquee")
+      );
+      const contentElements = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          ".gsap-react-marquee .gsap-react-marquee-content"
+        )
+      );
 
-      let animationFrameId: number | null = null;
-      const scheduleMeasurement = () => {
-        if (animationFrameId != null) return;
-        animationFrameId = requestAnimationFrame(() => {
-          setMeasurementVersion((version) => version + 1);
-          animationFrameId = null;
-        });
-      };
+      setupContainerStyles(
+        container,
+        marqueeElements,
+        contentElements,
+        isVertical,
+        { children, fill: shouldFill, spacing }
+      );
+    }, [
+      children,
+      className,
+      containerClassName,
+      containerStyle,
+      duplicateCount,
+      isVertical,
+      shouldFill,
+      spacing,
+    ]);
 
-      const resizeObserver =
-        typeof ResizeObserver !== "undefined"
-          ? new ResizeObserver(scheduleMeasurement)
-          : null;
-      if (resizeObserver) {
-        resizeObserver.observe(container);
-        if (firstContentElement) resizeObserver.observe(firstContentElement);
+    const {
+      beginCloneApplication,
+      cloneApplicationSnapshotRef,
+      measurementSnapshotRef,
+      measurementVersion,
+    } = useMarqueeMeasurement({
+      className,
+      containerClassName,
+      containerStyle,
+      contentDependency: children,
+      duplicateCount,
+      isVertical,
+      rootRef,
+    });
+
+    useLayoutEffect(() => {
+      const snapshot = measurementSnapshotRef.current;
+      const expectedAxis = isVertical ? "vertical" : "horizontal";
+      if (!snapshot || snapshot.axis !== expectedAxis) return;
+
+      const duplicateResult = calculateDuplicateCountResult(
+        snapshot.contentSize,
+        snapshot.viewportSize,
+        {
+          children: null,
+          fill: shouldFill,
+          maxDuplicates,
+          spacing,
+        }
+      );
+      const { duplicateCount: nextDuplicateCount } = duplicateResult;
+
+      if (
+        duplicateResult.limitReached &&
+        !hasWarnedDuplicateLimitRef.current
+      ) {
+        hasWarnedDuplicateLimitRef.current = true;
+        warnDuplicateLimit(
+          maxDuplicates,
+          duplicateResult.requiredDuplicateCount
+        );
       }
 
-      const pendingImages = Array.from(container.querySelectorAll("img"));
-      const handleImageSettled = () => scheduleMeasurement();
-      pendingImages.forEach((image) => {
-        if (image.complete) return;
-        image.addEventListener("load", handleImageSettled);
-        image.addEventListener("error", handleImageSettled);
-      });
+      if (duplicateCount === nextDuplicateCount) return;
 
-      return () => {
-        resizeObserver?.disconnect();
-        pendingImages.forEach((image) => {
-          image.removeEventListener("load", handleImageSettled);
-          image.removeEventListener("error", handleImageSettled);
-        });
-        if (animationFrameId != null) cancelAnimationFrame(animationFrameId);
-      };
-    }, [children, className]);
+      if (!beginCloneApplication(snapshot)) return;
+      setDuplicateCount(nextDuplicateCount);
+    }, [
+      beginCloneApplication,
+      duplicateCount,
+      isVertical,
+      maxDuplicates,
+      measurementSnapshotRef,
+      measurementVersion,
+      shouldFill,
+      spacing,
+    ]);
 
     useGSAP(
       (_, contextSafe) => {
         if (!marqueeRef.current || !rootRef.current || !contextSafe) return;
 
         const containerElement = rootRef.current;
+        const measurementSnapshot =
+          cloneApplicationSnapshotRef.current ??
+          measurementSnapshotRef.current;
+        const expectedAxis = isVertical ? "vertical" : "horizontal";
+
+        if (
+          !measurementSnapshot ||
+          measurementSnapshot.axis !== expectedAxis
+        ) {
+          return;
+        }
 
         /**
          * Pass only animation-related props to helpers.
@@ -156,7 +223,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
          */
         const animationProps = {
           children,
-          fill,
+          fill: shouldFill,
+          maxDuplicates,
           spacing,
           speed,
           delay,
@@ -175,21 +243,9 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
 
         if (!contentElements.length) return;
 
-        setupContainerStyles(
-          containerElement,
-          marqueeElements,
-          contentElements,
-          isVertical,
-          animationProps
-        );
-
-        const containerSize = isVertical
-          ? containerElement.offsetHeight
-          : containerElement.offsetWidth;
-        const contentSize = isVertical
-          ? contentElements[0].offsetHeight
-          : contentElements[0].offsetWidth;
-        const targetSize = getTargetSize(containerElement, isVertical);
+        const containerSize = measurementSnapshot.rootSize;
+        const contentSize = measurementSnapshot.contentSize;
+        const targetSize = measurementSnapshot.viewportSize;
         const startPosition = isVertical
           ? contentElements[0].offsetTop
           : contentElements[0].offsetLeft;
@@ -202,23 +258,19 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           return;
         }
 
-        const usesContentTrack = fill || isVertical;
-
         /**
-         * Duplicate count affects rendered DOM. When the measured count changes,
-         * update state and let React render the correct number of cloned items
-         * before creating the GSAP timeline.
+         * Clone state is applied by the dedicated layout effect. Timeline
+         * construction waits until the rendered count matches the same snapshot.
          */
         const nextDuplicateCount = calculateDuplicateCount(
           contentSize,
           targetSize,
           {
             ...animationProps,
-            fill: usesContentTrack,
+            fill: shouldFill,
           }
         );
         if (duplicateCount !== nextDuplicateCount) {
-          setDuplicateCount(nextDuplicateCount);
           return;
         }
 
@@ -352,6 +404,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           paused,
           delay,
           fill,
+          maxDuplicates,
           scrollFollow,
           scrollSpeed,
           pauseOnHover,
@@ -399,12 +452,19 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         ref={setContainerRef}
         style={
           {
+            ...containerStyle,
+            display: "flex",
+            overflow: "hidden",
+            position: "relative",
+            whiteSpace: "nowrap",
             "--gradient-color": gradientColorValue,
           } as CSSProperties
         }
-        className={cn("gsap-react-marquee-container", {
-          "gsap-react-marquee-vertical": isVertical,
-        })}
+        className={cn(
+          "gsap-react-marquee-container",
+          { "gsap-react-marquee-vertical": isVertical },
+          containerClassName
+        )}
       >
         <div ref={marqueeRef} className={cn("gsap-react-marquee")}>
           <div className={cn("gsap-react-marquee-content", className)}>

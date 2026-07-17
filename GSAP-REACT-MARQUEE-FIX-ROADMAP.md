@@ -489,21 +489,24 @@ Do not scatter these checks across event handlers.
 Before merging M1, install its packed tarball in the real consumer project and
 verify all of the following:
 
-- [ ] A default marquee and a marquee with valid numeric props still animate as
+- [x] A default marquee and a marquee with valid numeric props still animate as
       before M1.
-- [ ] `speed={0}`, negative speed, `NaN`, and `Infinity` do not freeze the page
+- [x] `speed={0}`, negative speed, `NaN`, and `Infinity` do not freeze the page
       or create console errors; the marquee uses the default speed.
-- [ ] Invalid `spacing` and `delay` values use their documented defaults without
+- [x] Invalid `spacing` and `delay` values use their documented defaults without
       broken layout or delayed startup.
-- [ ] Invalid `scrollSpeed` values remain finite while `scrollFollow` is active.
-- [ ] Invalid fractional, negative, `NaN`, and infinite `loop` values fall back
+- [x] Invalid `scrollSpeed` values remain finite while `scrollFollow` is active.
+- [x] Invalid fractional, negative, `NaN`, and infinite `loop` values fall back
       to infinite looping.
-- [ ] Content that starts at zero width or height begins animating after it gains
+- [x] Content that starts at zero width or height begins animating after it gains
       a positive size, without remounting the marquee.
-- [ ] A marquee mounted inside `display:none` begins animating after its wrapper
+- [x] A marquee mounted inside `display:none` begins animating after its wrapper
       becomes visible.
-- [ ] The consumer development console, production build, and SSR path show no
+- [x] The consumer development console, production build, and SSR path show no
       new errors or hydration failures.
+
+Consumer validation passed on 2026-07-17 and was explicitly confirmed by the
+user before starting M2A.
 
 Known vertical fill behavior belongs to M2, and controlled hover/drag pause
 behavior belongs to M3. Do not block M1 on those already-tracked bugs unless M1
@@ -674,64 +677,106 @@ track length for the viewport plus one seamless wrap segment.
 
 ### Clone Limit
 
-- [ ] Add an optional `maxDuplicates` prop with a documented finite default.
-- [ ] Normalize it to a positive integer.
-- [ ] Keep a hard internal safety ceiling to prevent accidental DOM explosion.
-- [ ] If the configured ceiling prevents full coverage, keep finite output and
+- [x] Add an optional `maxDuplicates` prop with a documented finite default.
+- [x] Normalize it to a positive integer.
+- [x] Keep a hard internal safety ceiling to prevent accidental DOM explosion.
+- [x] If the configured ceiling prevents full coverage, keep finite output and
       emit one development-only warning.
-- [ ] The default should cover realistic logo/text marquees without stopping at
+- [x] The default should cover realistic logo/text marquees without stopping at
       the current arbitrary limit of 15.
 
 ### Implementation Tasks
 
-- [ ] Remove the `fill: usesContentTrack` override passed to duplicate
+- [x] Remove the `fill: usesContentTrack` override passed to duplicate
       calculation.
-- [ ] Keep vertical track offset fixes without changing fill semantics.
-- [ ] Replace or retire `hasDefinedDimension` if it relies on computed pixel
+- [x] Keep vertical track offset fixes without changing fill semantics.
+- [x] Replace or retire `hasDefinedDimension` if it relies on computed pixel
       values to infer authored `auto` sizing.
-- [ ] Separate measurement from timeline construction.
-- [ ] Add the explicit clone-application guard and clone-applied-size comparison
+- [x] Separate measurement from timeline construction.
+- [x] Add the explicit clone-application guard and clone-applied-size comparison
       defined above.
-- [ ] Prevent clone-generated root resize events from replacing the measurement
+- [x] Prevent clone-generated root resize events from replacing the measurement
       snapshot, including delayed duplicate observer deliveries.
-- [ ] Do not use debounce or elapsed time as the primary correctness mechanism.
-- [ ] Add `containerClassName` and `containerStyle`.
-- [ ] Update duplicate calculation to include spacing.
-- [ ] Add and normalize `maxDuplicates`.
-- [ ] Ensure direction changes rebuild axis-specific measurement once, without a
+- [x] Do not use debounce or elapsed time as the primary correctness mechanism.
+- [x] Add `containerClassName` and `containerStyle`.
+- [x] Update duplicate calculation to include spacing.
+- [x] Add and normalize `maxDuplicates`.
+- [x] Ensure direction changes rebuild axis-specific measurement once, without a
       clone growth sequence.
-- [ ] Preserve behavior when images or fonts change first-content dimensions.
+- [x] Preserve behavior when images or fonts change first-content dimensions.
 
 ### Required Regression Tests
 
-- [ ] `fill=false` renders one original plus one duplicate for all directions.
-- [ ] Vertical `fill=false` does not calculate clones from viewport height.
-- [ ] Vertical `fill=true` in a fixed 320px viewport covers the viewport.
-- [ ] Horizontal `fill=true` in a fixed 800px viewport covers the viewport.
-- [ ] Unconstrained vertical content does not repeatedly grow to the clone cap.
-- [ ] Clone count stabilizes after at most one clone-render adjustment for one
+- [x] `fill=false` renders one original plus one duplicate for all directions.
+- [x] Vertical `fill=false` does not calculate clones from viewport height.
+- [x] Vertical `fill=true` in a fixed 320px viewport covers the viewport.
+- [x] Horizontal `fill=true` in a fixed 800px viewport covers the viewport.
+- [x] Unconstrained vertical content does not repeatedly grow to the clone cap.
+- [x] Clone count stabilizes after at most one clone-render adjustment for one
       measurement snapshot.
-- [ ] An instrumented ResizeObserver test proves that clone application does not
+- [x] An instrumented ResizeObserver test proves that clone application does not
       increment the accepted viewport-measurement count.
-- [ ] Replaying the clone-applied root size across multiple observer deliveries
+- [x] Replaying the clone-applied root size across multiple observer deliveries
       does not create a new snapshot or state update.
-- [ ] A genuinely different external root size is accepted after the guard clears.
-- [ ] Resizing a constrained vertical viewport from 320px to 480px produces one
+- [x] A genuinely different external root size is accepted after the guard clears.
+- [x] Resizing a constrained vertical viewport from 320px to 480px produces one
       new stable clone count.
-- [ ] Changing `up` to `down` does not change clone count.
-- [ ] Changing horizontal to vertical remeasures the active axis.
-- [ ] Very small content either covers the viewport or reaches the documented
+- [x] Changing `up` to `down` does not change clone count.
+- [x] Changing horizontal to vertical remeasures the active axis.
+- [x] Very small content either covers the viewport or reaches the documented
       safety ceiling with one warning.
-- [ ] Spacing `0`, default spacing, and large valid spacing all remain seamless.
+- [x] Spacing `0`, default spacing, and large valid spacing all remain seamless.
 
 ### Acceptance Criteria
 
-- [ ] No ResizeObserver loop or repeated React clone-growth sequence occurs.
-- [ ] `fill` is direction-independent in implementation and tests.
-- [ ] Fixed-size horizontal and vertical browser fixtures show no visible gap
+- [x] No ResizeObserver loop or repeated React clone-growth sequence occurs.
+- [x] `fill` is direction-independent in implementation and tests.
+- [x] Fixed-size horizontal and vertical browser fixtures show no visible gap
       during at least two full cycles.
-- [ ] New root styling props are present in generated declarations.
-- [ ] README sizing examples use a constrained vertical viewport.
+- [x] New root styling props are present in generated declarations.
+- [x] README sizing examples use a constrained vertical viewport.
+
+### M2A Consumer-Project Manual Validation
+
+Before merging M2A, install its packed tarball in the real consumer project and
+verify all of the following:
+
+- [ ] An unconstrained vertical marquee reaches one stable height and does not
+      grow repeatedly or render 15 clones.
+- [ ] DevTools shows no `ResizeObserver loop` errors or repeated clone DOM churn.
+- [ ] Horizontal and vertical marquees still animate with their existing M1
+      behavior after mount.
+- [ ] Content that changes size after mount, including images, produces one new
+      stable measurement and continues animating.
+- [ ] A genuine parent/container resize is accepted after clone rendering and
+      produces one stable recalculation.
+- [ ] Changing between horizontal and vertical directions remeasures the active
+      axis once without a growth sequence.
+- [ ] Consumer development, production build, and SSR paths show no new errors
+      or hydration failures.
+
+M2A does not fix direction-dependent `fill`; that remains an expected M2B issue
+and must not be treated as an M2A regression.
+
+### M2B Consumer-Project Manual Validation
+
+Before merging M2, install the M2B packed tarball in the real consumer project
+and verify all of the following:
+
+- [ ] With `fill={false}`, `left`, `right`, `up`, and `down` each render one
+      original plus one duplicate and animate as before.
+- [ ] Horizontal `fill` covers a constrained viewport with spacing `0`, default
+      spacing, and one large valid spacing without a visible sequence gap.
+- [ ] Vertical `fill` with an explicit root height covers the viewport for both
+      `up` and `down` without a visible sequence gap.
+- [ ] Resizing a constrained horizontal or vertical viewport produces one new
+      stable clone count without `ResizeObserver` errors.
+- [ ] `containerClassName` applies only to the root; `containerStyle` applies
+      width/height/background without breaking gradient or required layout.
+- [ ] A low `maxDuplicates` keeps DOM output finite and emits no more than one
+      development warning when full coverage is impossible.
+- [ ] Consumer development, production build, and SSR paths show no new errors,
+      hydration failures, or non-finite GSAP durations.
 
 ---
 

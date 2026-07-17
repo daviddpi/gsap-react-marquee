@@ -22,6 +22,11 @@ and this project adheres to
 - Added centralized numeric option normalization and positive measurement guards.
 - Added browser regressions for zero-width, zero-height, and initially hidden
   marquees that initialize after becoming measurable.
+- Added an axis-specific measurement snapshot lifecycle with instrumented
+  ResizeObserver and browser convergence coverage.
+- Added `containerClassName` and `containerStyle` for root viewport styling.
+- Added normalized `maxDuplicates` control with a default of `100`, an internal
+  ceiling of `250`, and one development warning when the limit prevents fill.
 
 ### Changed
 
@@ -32,6 +37,16 @@ and this project adheres to
   documented finite fallbacks before reaching GSAP.
 - Timeline and drag initialization now wait for finite positive measurements;
   invalid geometry cannot create negative or non-finite animation durations.
+- Clone count updates now occur outside GSAP timeline construction and reuse the
+  exact viewport/content snapshot that produced them.
+- Root resize notifications caused by clone rendering are ignored during clone
+  application and on delayed matching deliveries, while genuine external and
+  first-content resizes remain observable.
+- `fill` now controls duplicate count independently from direction; normal mode
+  renders one original plus one duplicate for all four directions.
+- Fill coverage now includes spacing and one complete wrap segment.
+- Root measurement now uses actual axis geometry instead of computed-style
+  heuristics, and simultaneous external resize plus clone updates are preserved.
 
 ### Notes
 
@@ -41,6 +56,8 @@ and this project adheres to
   0 baseline; Node.js 22 remains part of the manual `0.4.0` release matrix.
 - Numeric normalization is intentionally silent and does not emit repeated
   runtime warnings.
+- Milestone 2 was delivered in M2A/M2B phases. Vertical fill should use an
+  explicitly constrained root height for predictable coverage.
 
 ## [0.3.2]
 

@@ -1,4 +1,5 @@
 import { gsap } from "gsap";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import GSAPReactMarquee from "../../src/components/gsap-react-marquee";
 import type { GSAPReactMarqueeProps } from "../../src/components/gsap-react-marquee.type";
@@ -42,10 +43,14 @@ const initialOptions: FixtureOptions =
     : {};
 
 const renderFixture = (options: FixtureOptions = {}) => {
-  root.render(
+  const marquee = (
     <GSAPReactMarquee {...options}>
       <div className="fixture-content">Browser fixture</div>
     </GSAPReactMarquee>
+  );
+
+  root.render(
+    searchParams.has("strict") ? <StrictMode>{marquee}</StrictMode> : marquee
   );
 };
 
