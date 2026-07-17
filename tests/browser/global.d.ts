@@ -9,7 +9,12 @@ declare global {
       setContainerSize: (width: number, height: number) => void;
       setContentSize: (width: number, height: number) => void;
       setContentVariant: (
-        variant: "accessibility" | "default" | "presentational"
+        variant:
+          | "accessibility"
+          | "default"
+          | "presentational"
+          | "vertical-example"
+          | "vertical-title"
       ) => void;
       setDisplay: (display: string) => void;
       timelineCount: () => number;
@@ -18,6 +23,7 @@ declare global {
         active: boolean;
         complete: number;
         hasReverseContinuation: boolean;
+        identity: number;
         paused: boolean;
         progress: number;
         repeat: number;
@@ -25,6 +31,7 @@ declare global {
         reverseComplete: number;
         reversed: boolean;
         timeScale: number;
+        totalTime: number;
         totalProgress: number;
       } | null;
       observeBaseTimeline: () => boolean;
@@ -33,6 +40,7 @@ declare global {
         observers: number;
         taggedAnimations: number;
       };
+      marqueeListenerCount: () => number;
       unmount: () => void;
     };
   }

@@ -106,6 +106,151 @@ test("updates rendered props without remounting the fixture", async ({ page }) =
   await expect(page.locator(".browser-updated-content").first()).toBeVisible();
 });
 
+test("equivalent parent rerender preserves timeline and listeners", async ({
+  page,
+}) => {
+  const options = {
+    pauseOnHover: true,
+    paused: true,
+    scrollFollow: true,
+  };
+  await page.evaluate((nextOptions) => {
+    window.__marqueeFixture.render(nextOptions);
+  }, options);
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.baseTimelineState()))
+    .not.toBeNull();
+
+  const before = await page.evaluate(() => ({
+    listeners: window.__marqueeFixture.marqueeListenerCount(),
+    resources: window.__marqueeFixture.resourceCounts(),
+    timeline: window.__marqueeFixture.baseTimelineState(),
+  }));
+
+  await page.evaluate((nextOptions) => {
+    window.__marqueeFixture.render({ ...nextOptions });
+  }, options);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+
+  const after = await page.evaluate(() => ({
+    listeners: window.__marqueeFixture.marqueeListenerCount(),
+    resources: window.__marqueeFixture.resourceCounts(),
+    timeline: window.__marqueeFixture.baseTimelineState(),
+  }));
+
+  expect(before.listeners).toBe(4);
+  expect(after.listeners).toBe(before.listeners);
+  expect(after.resources).toEqual(before.resources);
+  expect(after.timeline?.identity).toBe(before.timeline?.identity);
+  expect(after.timeline?.totalTime).toBe(before.timeline?.totalTime);
+});
+
+test("actual content resize replaces the timeline once", async ({ page }) => {
+  await page.evaluate(() => {
+    window.__marqueeFixture.render({ paused: true });
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.baseTimelineState()))
+    .not.toBeNull();
+
+  const previousIdentity = await page.evaluate(
+    () => window.__marqueeFixture.baseTimelineState()?.identity
+  );
+  await page.evaluate(() => window.__marqueeFixture.setContentSize(240, 40));
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => window.__marqueeFixture.baseTimelineState()?.identity
+        )
+    )
+    .not.toBe(previousIdentity);
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.resourceCounts()))
+    .toEqual({ baseTimelines: 1, observers: 0, taggedAnimations: 1 });
+
+  const stableIdentities = await page.evaluate(async () => {
+    const identities: number[] = [];
+    for (let frame = 0; frame < 6; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const identity = window.__marqueeFixture.baseTimelineState()?.identity;
+      if (identity !== undefined) identities.push(identity);
+    }
+    return identities;
+  });
+
+  expect(new Set(stableIdentities).size).toBe(1);
+  expect(stableIdentities[0]).not.toBe(previousIdentity);
+});
+
+test("primitive animation option changes rebuild controlled behavior", async ({
+  page,
+}) => {
+  const options = {
+    dir: "left" as const,
+    fill: false,
+    loop: -1,
+    paused: true,
+    spacing: 16,
+    speed: 100,
+  };
+  await page.evaluate((nextOptions) => {
+    window.__marqueeFixture.render(nextOptions);
+  }, options);
+  await expect
+    .poll(() => page.evaluate(() => window.__marqueeFixture.baseTimelineState()))
+    .not.toBeNull();
+
+  let previousIdentity = await page.evaluate(
+    () => window.__marqueeFixture.baseTimelineState()?.identity
+  );
+  const updates = [
+    { speed: 200 },
+    { dir: "right" as const },
+    { loop: 2 },
+    { spacing: 32 },
+    { fill: true },
+    { paused: false },
+  ];
+
+  for (const update of updates) {
+    Object.assign(options, update);
+    await page.evaluate((nextOptions) => {
+      window.__marqueeFixture.render(nextOptions);
+    }, options);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => window.__marqueeFixture.baseTimelineState()?.identity
+          )
+      )
+      .not.toBe(previousIdentity);
+    previousIdentity = await page.evaluate(
+      () => window.__marqueeFixture.baseTimelineState()?.identity
+    );
+  }
+
+  const finalState = await page.evaluate(() => ({
+    itemCount: document.querySelectorAll(
+      ".gsap-react-marquee-container > .gsap-react-marquee"
+    ).length,
+    timeline: window.__marqueeFixture.baseTimelineState(),
+  }));
+  expect(finalState.itemCount).toBeGreaterThan(2);
+  expect(finalState.timeline).toMatchObject({
+    paused: false,
+    repeatValue: 2,
+    reversed: true,
+  });
+});
+
 test("responds to explicit container dimensions", async ({ page }) => {
   await page.evaluate(() => {
     window.__marqueeFixture.setContainerSize(480, 120);
@@ -318,7 +463,6 @@ test("vertical fill covers a fixed viewport equally for up and down", async ({
   await page.evaluate(() => {
     window.__marqueeFixture.setContainerSize(800, 320);
     window.__marqueeFixture.render({
-      containerStyle: { height: "100%" },
       dir: "up",
       fill: true,
     });
@@ -327,7 +471,6 @@ test("vertical fill covers a fixed viewport equally for up and down", async ({
 
   await page.evaluate(() => {
     window.__marqueeFixture.render({
-      containerStyle: { height: "100%" },
       dir: "down",
       fill: true,
     });
@@ -341,7 +484,6 @@ test("constrained vertical resize produces one new stable clone count", async ({
   await page.evaluate(() => {
     window.__marqueeFixture.setContainerSize(800, 320);
     window.__marqueeFixture.render({
-      containerStyle: { height: "100%" },
       dir: "up",
       fill: true,
     });
@@ -395,7 +537,6 @@ test("vertical fill remains seamless for two cycles", async ({ page }) => {
   await page.evaluate(() => {
     window.__marqueeFixture.setContainerSize(800, 320);
     window.__marqueeFixture.render({
-      containerStyle: { height: "100%" },
       dir: "up",
       fill: true,
       speed: 2_000,
@@ -774,16 +915,15 @@ for (const reverseDirection of ["right", "down"] as const) {
   }) => {
     const vertical = reverseDirection === "down";
     await page.evaluate(
-      ({ direction, isVertical }) => {
+      (direction) => {
         window.__marqueeFixture.setContainerSize(800, 320);
         window.__marqueeFixture.render({
-          containerStyle: isVertical ? { height: "100%" } : undefined,
           dir: direction,
           fill: true,
           speed: 2_000,
         });
       },
-      { direction: reverseDirection, isVertical: vertical }
+      reverseDirection
     );
 
     await expect

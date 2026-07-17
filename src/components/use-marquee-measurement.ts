@@ -1,6 +1,4 @@
 import {
-  type CSSProperties,
-  type ReactNode,
   type RefObject,
   useCallback,
   useRef,
@@ -22,10 +20,6 @@ export type MarqueeMeasurementSnapshot = {
 };
 
 type UseMarqueeMeasurementOptions = {
-  className: string | undefined;
-  containerClassName: string | undefined;
-  containerStyle: CSSProperties | undefined;
-  contentDependency: ReactNode;
   duplicateCount: number;
   isVertical: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
@@ -74,10 +68,6 @@ const getFirstContentElement = (
 };
 
 export const useMarqueeMeasurement = ({
-  className,
-  containerClassName,
-  containerStyle,
-  contentDependency,
   duplicateCount,
   isVertical,
   rootRef,
@@ -307,10 +297,6 @@ export const useMarqueeMeasurement = ({
     acceptContentMeasurement,
     acceptExternalMeasurement,
     acceptRootMeasurement,
-    className,
-    containerClassName,
-    containerStyle,
-    contentDependency,
     isVertical,
     rootRef,
   ]);

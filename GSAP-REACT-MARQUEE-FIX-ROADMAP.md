@@ -185,6 +185,7 @@ Milestone branches, merged sequentially into `release/0.4.0`:
 | M3 Timeline control | `fix/m3-timeline-control` |
 | M4 Accessibility and reduced motion | `fix/m4-a11y-reduced-motion` |
 | M5 React performance and bundle | `fix/m5-react-perf-bundle` |
+| M5.1 Vertical wrap and clone entry | `fix/m5.1-vertical-wrap-entry` |
 | M6 Security, docs, and release | `fix/m6-security-docs-release` |
 
 Required flow:
@@ -325,7 +326,8 @@ M0 Verification baseline
       -> M3 Timeline control, reverse, hover, scroll, and drag
         -> M4 Accessibility and reduced motion
           -> M5 React performance and bundle hygiene
-            -> M6 Security, documentation, and release gate
+            -> M5.1 Vertical wrap and clone entry
+              -> M6 Security, documentation, and release gate
 ```
 
 Milestones may not be reordered without documenting why their dependency is no
@@ -1055,59 +1057,238 @@ the corrected lifecycle.
 
 ### React Effect Tasks
 
-- [ ] Remove `children` object identity from animation effect dependencies.
-- [ ] Rebuild only when primitive animation options or real measurements change.
-- [ ] Let ResizeObserver detect size changes.
-- [ ] Add MutationObserver only if tests prove same-size DOM mutations require
+- [x] Remove `children` object identity from animation effect dependencies.
+- [x] Rebuild only when primitive animation options or real measurements change.
+- [x] Let ResizeObserver detect size changes.
+- [x] Add MutationObserver only if tests prove same-size DOM mutations require
       timeline reconstruction.
-- [ ] Keep transient measurement and callback values in refs where they should
+- [x] Keep transient measurement and callback values in refs where they should
       not trigger render.
-- [ ] Avoid derived-state effects when clone count can be derived from a stable
+- [x] Avoid derived-state effects when clone count can be derived from a stable
       measurement snapshot.
-- [ ] Verify that an unrelated parent state update does not change timeline
+- [x] Verify that an unrelated parent state update does not change timeline
       identity, total time, or listener count.
-- [ ] Ensure StrictMode does not double-register global listeners.
+- [x] Ensure StrictMode does not double-register global listeners.
 
 ### Bundle Tasks
 
-- [ ] Measure baseline minified and gzip sizes for default-only and interactive
+- [x] Measure baseline minified and gzip sizes for default-only and interactive
       consumers.
-- [ ] Replace `gsap/all.js` with direct module imports where package compatibility
+- [x] Replace `gsap/all.js` with direct module imports where package compatibility
       allows.
-- [ ] Verify GSAP 3.12 and 3.13 import compatibility before changing paths.
-- [ ] Consider conditional dynamic imports for Observer, Draggable, and Inertia
+- [x] Verify GSAP 3.12 and 3.13 import compatibility before changing paths.
+- [x] Consider conditional dynamic imports for Observer, Draggable, and Inertia
       only if measured savings justify asynchronous lifecycle complexity.
-- [ ] Cache any conditional plugin import promise at module level.
-- [ ] Ensure optional plugin loading cannot initialize after unmount.
-- [ ] Stop using `tailwind-merge` inside the default component when simple class
+- [x] Cache any conditional plugin import promise at module level.
+- [x] Ensure optional plugin loading cannot initialize after unmount.
+- [x] Stop using `tailwind-merge` inside the default component when simple class
       composition is sufficient.
-- [ ] Keep existing `cn` exports for `0.4.0`; mark them deprecated if moving to a
+- [x] Keep existing `cn` exports for `0.4.0`; mark them deprecated if moving to a
       future utility subpath.
-- [ ] Remove unused `react-dom` peer dependency.
-- [ ] Review `sideEffects` metadata carefully. CSS injection must not be removed
+- [x] Remove unused `react-dom` peer dependency.
+- [x] Review `sideEffects` metadata carefully. CSS injection must not be removed
       by consumer tree shaking.
-- [ ] Do not minify away diagnostics that are part of supported runtime behavior.
+- [x] Do not minify away diagnostics that are part of supported runtime behavior.
 
 ### Required Regression Tests
 
-- [ ] Equivalent parent rerenders do not recreate the timeline.
-- [ ] Actual content size changes do recreate measurement and timeline once.
-- [ ] Changing speed, direction, loop, spacing, fill, or paused updates behavior.
-- [ ] Default usage does not initialize Draggable or Observer when conditional
+- [x] Equivalent parent rerenders do not recreate the timeline.
+- [x] Actual content size changes do recreate measurement and timeline once.
+- [x] Changing speed, direction, loop, spacing, fill, or paused updates behavior.
+- [x] Default usage does not initialize Draggable or Observer when conditional
       loading is implemented.
-- [ ] Interactive props initialize each required plugin once.
-- [ ] Unmount before an optional import resolves creates no resources.
-- [ ] CSS still appears when importing only the default component.
-- [ ] ESM tree-shaking smoke fixture builds successfully.
-- [ ] CommonJS consumer remains functional.
+- [x] Interactive props initialize each required plugin once.
+- [x] Unmount before an optional import resolves creates no resources.
+- [x] CSS still appears when importing only the default component.
+- [x] ESM tree-shaking smoke fixture builds successfully.
+- [x] CommonJS consumer remains functional.
 
 ### Acceptance Criteria
 
-- [ ] Parent rerender regression test passes.
-- [ ] No effect depends on a non-primitive value without a documented reason.
-- [ ] Bundle size does not regress accidentally; intentional changes are recorded.
-- [ ] Default, scroll-follow, and draggable fixtures all build and run.
-- [ ] Public exports remain compatible for `0.4.0`.
+- [x] Parent rerender regression test passes.
+- [x] No effect depends on a non-primitive value without a documented reason.
+- [x] Bundle size does not regress accidentally; intentional changes are recorded.
+- [x] Default, scroll-follow, and draggable fixtures all build and run.
+- [x] Public exports remain compatible for `0.4.0`.
+
+### Verification Record
+
+- Baseline (`gsap/all.js`): default consumer 156,230 minified / 57,364 gzip
+  bytes; interactive consumer 156,258 / 57,372 bytes.
+- Milestone 5 result: default initial consumer 86,814 minified / 33,155 gzip
+  bytes; interactive total 130,352 / 50,035 bytes. Bundle smoke budgets are
+  90,000 / 35,000 and 135,000 / 52,000 bytes respectively.
+- The optional Draggable and Observer graph measured 43,164 minified / 15,488
+  gzip bytes, justifying conditional loading. Import promises are module-cached;
+  registration occurs only after a mounted requester receives the module.
+- `gsap/Draggable.js` and `gsap/Observer.js` runtime exports plus their official
+  type modules were verified against npm tarball `gsap@3.12.5`; the installed
+  `gsap@3.13.0` passes type, unit, Chromium, WebKit, build, ESM, and CommonJS
+  checks. `InertiaPlugin.js` is absent from the 3.12.5 tarball, so momentum is
+  feature-detected from a consumer-registered plugin instead of imported.
+- Same-size child identity changes require accessibility rescanning but no
+  timeline rebuild; ResizeObserver covers geometry changes, so MutationObserver
+  was not added. Clone count remains stateful only because clone-application
+  suppression must be armed before the DOM commit that changes root geometry.
+- `sideEffects` remains intentionally unspecified. The distributed JavaScript
+  injects CSS, so declaring the bundle side-effect-free would risk losing styles;
+  the default-only tree-shaking fixture asserts that injected CSS survives.
+
+---
+
+## Milestone 5.1 - Vertical Wrap and Clone Entry Correction
+
+### Status
+
+Implementation and automated matrix complete. Packed-tarball validation in the
+consumer project remains before M6.
+
+### Goal
+
+Make vertical `dir="up"` and `dir="down"` loops re-enter from the correct
+edge every time. A cloned `.gsap-react-marquee-content` must not appear in the
+middle of the viewport during a wrap, including after a timeline rebuild,
+clone-count change, resize, pause/resume, or direction change.
+
+### Reported Symptom
+
+In vertical mode, the visual clone sometimes disappears and reappears from the
+middle instead of entering from below (`up`) or above (`down`). Reproduction is
+intermittent. The affected element is the repeated
+`.gsap-react-marquee-content`, not the semantic original.
+
+### Investigation Hypotheses
+
+Treat these as hypotheses, not fixes. Prove the failing invariant first:
+
+- `offsetTop` is layout-space while `yPercent`/`y` are transform-space; mixing
+  them can calculate an entry point from stale geometry.
+- `gap` contributes to flex layout but is not represented consistently in the
+  per-item offset and wrap distance.
+- Re-initialization can read a clone while it still has a previous GSAP
+  transform, then use that transformed value as its new baseline.
+- `fromTo` entry values may render before the clone is positioned outside the
+  viewport, exposing an intermediate position for one frame.
+- Vertical `height: max-content` and unconstrained roots can change the
+  percentage basis between measurement and timeline construction.
+
+### Scope
+
+- [x] Capture deterministic vertical reproductions for `up` and `down` at
+      multiple speeds, spacings, root heights, content heights, and clone
+      counts.
+- [x] Instrument each content clone's `DOMRect` and computed transform on every
+      animation frame around a wrap.
+- [x] Define one coordinate space for vertical measurement, entry, exit, and
+      wrap calculations; document conversion boundaries.
+- [x] Reset or normalize stale clone transforms before using them as a new
+      timeline baseline.
+- [x] Ensure `up` re-entry starts at or below the viewport's lower edge and
+      `down` re-entry starts at or above its upper edge, within a documented
+      frame-distance tolerance.
+- [x] Preserve horizontal behavior, `fill` direction independence, spacing,
+      finite/infinite loop semantics, dragging, scroll-follow, and reduced
+      motion.
+- [x] Do not add a MutationObserver or change the public prop contract unless
+      a failing regression proves it necessary.
+
+### Investigation Evidence - 2026-07-17
+
+- Added `tests/browser/m5.1-reproduction.spec.ts` as a deterministic
+  characterization of the reported `dir="up"`, `spacing={24}` example. The
+  fixture uses the example's `200px` by `300px` centered flex parent and an
+  equivalent `400px` content stack (four `80px` image rows, one `48px` text
+  row, and four `8px` gaps).
+- Without an explicit height on the component root, the root grows to `824px`
+  (two `400px` items plus `24px` spacing). Chromium observed wrap entry at
+  `140px` to `169px` inside the parent's visible `300px` viewport; WebKit
+  observed `155px` to `181px`. This deterministically reproduces the apparent
+  middle entry.
+- With `containerStyle={{ height: "100%" }}`, the root remains `300px` high.
+  Chromium observed entry at `416px` to `447px`; WebKit observed `406px` to
+  `432px`, below the lower viewport edge as required.
+- The pre-fix browser trace used `speed={3000}` to collect several wraps in one
+  second. Final `up` and `down` regressions run `speed={80}` unchanged and wait
+  for natural wraps. Stress cases use `speed={3000}` with a per-wrap tolerance
+  equal to the greater of elapsed-time travel and observed non-wrapping-item
+  travel for that sampled frame, plus `4px` subpixel margin.
+- This example proves a missing root-height constraint, not stale transforms or
+  mixed coordinate spaces. Do not change animation math from this evidence
+  alone; continue the M5.1 matrix with a constrained root, both directions,
+  rebuilds, and clone-count changes.
+- Fix: `.gsap-react-marquee-vertical` now fills the parent's available height
+  by default and uses flex/grid stretch as a layout fallback. The zero-specificity
+  default preserves `containerClassName` overrides; inline `containerStyle`
+  sizes also remain authoritative. The public API is unchanged.
+- The characterization is now a regression using the example's real structure:
+  four explicit `64px` image rows, Tailwind-equivalent padding and gaps, and a
+  `32px` GSAP label. Neither test supplies `containerStyle` or
+  `containerClassName`. Both `up` and `down` keep the root at `200px` by
+  `300px` and assert repeated entry from the correct edge.
+- A second real fixture covers the `h-[420px]`, `text-5xl`, `py-8` title. Its
+  natural item is `112px`; before correction the two-item content track was
+  `256px` and wrapped at `143px` inside the `420px` viewport. Normal mode now
+  animates wrappers sized to `max(contentSize, viewportSize)`, producing entry
+  at `451px` below the viewport.
+- Reverse tall-content tracing exposed a separate measurement mismatch: a
+  `400px` content item used a `300px` stretched wrapper and re-entered with
+  `101px` still visible. Wrapper sizing now uses the stable natural
+  `contentSize` snapshot, so reverse entry starts fully above the viewport.
+- `useGSAP({ revertOnUpdate: true })` normalizes GSAP transforms before every
+  rebuild. Segment construction then reads layout offsets relative to the root,
+  converts the existing pixel/percent transform at one explicit boundary, and
+  clears pixel translation after setting normalized percentages. Browser
+  assertions observe root-relative `DOMRect` values and the active computed
+  transform.
+
+### Required Regression Tests
+
+- [x] Unit test vertical segment math for one item, two items, spacing, and
+      both directions; assert finite positions and positive travel distances.
+- [x] Browser test repeated `up` wraps with `fill={false}` and `fill={true}`;
+      first visible frame after leaving through the top must originate at the
+      bottom edge, never the middle.
+- [x] Browser test repeated `down` wraps with `fill={false}` and `fill={true}`;
+      first visible frame after leaving through the bottom must originate at
+      the top edge, never the middle.
+- [x] Run the same assertions after resize, clone-count change, pause/resume,
+      direction change, and timeline re-initialization.
+- [x] Add a stress run covering at least 100 wrap opportunities per direction
+      with no mid-viewport entry and no visible coverage gap.
+- [x] Keep existing horizontal, accessibility, reduced-motion, Chromium, and
+      WebKit suites green.
+- [ ] Repeat packed-tarball manual test for the corrected vertical behavior.
+
+### Acceptance Criteria
+
+- [x] No observed vertical clone enters from the middle of the viewport in the
+      deterministic stress matrix.
+- [x] `up` and `down` entry origins remain symmetric within tolerance.
+- [x] No visible gap appears at wrap boundaries across 100 cycles per
+      direction.
+- [x] No regression in horizontal marquee, clone count, timeline identity, or
+      listener count.
+- [x] Chromium and WebKit browser suites pass.
+- [ ] `pnpm run check`, `pnpm run test:package`, and packed-consumer checks pass.
+- [x] README troubleshooting notes describe the corrected vertical invariant.
+
+### Exit Evidence
+
+- Coordinate decision: parent layout owns available viewport size; the marquee
+  root automatically consumes that size, while measured content and clones own
+  only track length. Wrap assertions use viewport-relative `DOMRect` values.
+- Reported example: `200px` by `300px` parent, natural `400px` content,
+  `spacing={24}`, `fill={false}`, `gradient={true}`, and real `speed={80}` for
+  `up`. Root resolves to `200px` by `300px`; entry occurs below the bottom edge.
+  Accelerated symmetric `down` coverage enters above the top edge.
+- `pnpm run check`: pass (`69` unit tests).
+- Chromium browser suite: pass (`65` tests).
+- WebKit browser suite: pass (`65` tests; all `10` M5.1 cases also pass together
+  with the final per-frame movement instrumentation).
+- `pnpm run test:package`: pass for build, ESM, CommonJS, types, SSR, CSS, and
+  consumer bundle budgets.
+- Packed-tarball manual consumer validation remains open; M5.1 therefore stays
+  in progress until the refreshed archive passes in the real project.
 
 ---
 
@@ -1243,7 +1424,7 @@ The final implementing agent should return a report in this form:
 ```markdown
 ## Outcome
 
-Implemented milestones: M0-M6
+Implemented milestones: M0-M5.1, M6
 Suggested release: 0.4.0
 
 ## Behavior Fixed

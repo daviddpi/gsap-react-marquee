@@ -1,8 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { gsap } from "gsap";
-import { Draggable, InertiaPlugin } from "gsap/all.js";
 import { twMerge } from "tailwind-merge";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
+import type { MarqueeDraggablePlugins } from "./marquee-plugins";
 
 const DEFAULT_DELAY = 0;
 const DEFAULT_LOOP = -1;
@@ -224,7 +224,7 @@ export const setupContainerStyles = (
   props: GSAPReactMarqueeProps
 ) => {
   const { spacing } = normalizeMarqueeOptions(props);
-  const usesContentTrack = props.fill || isVertical;
+  const usesContentTrack = props.fill ?? false;
 
   gsap.set(containerElement, {
     gap: `${spacing}px`,
@@ -232,6 +232,7 @@ export const setupContainerStyles = (
   });
 
   gsap.set(marqueeElements, {
+    flexDirection: isVertical ? "column" : "row",
     gap: `${spacing}px`,
     [isVertical ? "minHeight" : "minWidth"]: usesContentTrack ? "auto" : "100%",
     flex: usesContentTrack ? "0 0 auto" : "1",
@@ -398,7 +399,8 @@ export const createMarqueeAnimation = (
   isVertical: boolean,
   props: GSAPReactMarqueeProps,
   offsetContainer?: HTMLElement,
-  getPaused?: () => boolean
+  getPaused?: () => boolean,
+  draggablePlugins?: MarqueeDraggablePlugins
 ): (() => void) | undefined => {
   const { spacing, speed, delay, loop } = normalizeMarqueeOptions(props);
   const { paused = false, draggable = false } = props;
@@ -554,7 +556,10 @@ export const createMarqueeAnimation = (
 
   let reverseDelayTween: gsap.core.Tween | undefined;
   let throwDelayTween: gsap.core.Tween | undefined;
-  let draggableInstance: ReturnType<typeof Draggable.create>[number] | undefined;
+  type DraggableInstance = ReturnType<
+    MarqueeDraggablePlugins["Draggable"]["create"]
+  >[number];
+  let draggableInstance: DraggableInstance | undefined;
   let dragProxyElement: HTMLElement | undefined;
 
   const restoreControlledState = () => {
@@ -600,6 +605,8 @@ export const createMarqueeAnimation = (
     restoreControlledState();
   }
 
+  const Draggable = draggablePlugins?.Draggable;
+
   if (typeof Draggable === "function" && draggable) {
     /**
      * Draggable needs a mutable proxy element to store drag coordinates.
@@ -642,7 +649,8 @@ export const createMarqueeAnimation = (
       );
     };
 
-    if (typeof InertiaPlugin === "undefined") {
+    const hasInertiaPlugin = Boolean(gsap.plugins.inertia);
+    if (!hasInertiaPlugin) {
       console.warn(
         "InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club"
       );
@@ -672,8 +680,8 @@ export const createMarqueeAnimation = (
       onDrag: syncTimelineToDrag,
       onThrowUpdate: syncTimelineToDrag,
       overshootTolerance: 0,
-      inertia: true,
-      onRelease(this: Draggable) {
+      inertia: hasInertiaPlugin,
+      onRelease(this: DraggableInstance) {
         if (!this.isThrowing) restoreAfterDrag();
       },
       onThrowComplete() {

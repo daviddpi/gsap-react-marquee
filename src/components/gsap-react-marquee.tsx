@@ -1,6 +1,5 @@
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { Draggable, InertiaPlugin, Observer } from "gsap/all.js";
 import {
   type CSSProperties,
   type MutableRefObject,
@@ -21,7 +20,6 @@ import {
 import {
   calculateDuplicateCount,
   calculateDuplicateCountResult,
-  cn,
   createMarqueeAnimation,
   getEffectiveBackgroundColor,
   getMinSize,
@@ -31,10 +29,15 @@ import {
   setupContainerStyles,
 } from "./gsap-reactmarquee.utils";
 import { useMarqueeMeasurement } from "./use-marquee-measurement";
+import { useMarqueePlugins } from "./use-marquee-plugins";
 import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 
-gsap.registerPlugin(useGSAP, Observer, InertiaPlugin, Draggable);
+gsap.registerPlugin(useGSAP);
+
+const joinClassNames = (
+  ...classNames: Array<string | false | null | undefined>
+): string => classNames.filter(Boolean).join(" ");
 
 const warnDuplicateLimit = (
   maxDuplicates: number,
@@ -95,6 +98,10 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     const prefersReducedMotion = usePrefersReducedMotion();
     const shouldReduceMotion =
       respectReducedMotion && prefersReducedMotion;
+    const { pluginsReady, pluginsRef } = useMarqueePlugins({
+      draggable: draggable && !shouldReduceMotion,
+      scrollFollow: scrollFollow && !shouldReduceMotion,
+    });
     const pausedRef = useRef(paused);
     pausedRef.current = paused;
     const [duplicateCount, setDuplicateCount] = useState(0);
@@ -120,6 +127,10 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       [ref]
     );
 
+    /**
+     * containerStyle is intentionally observed by identity: background-only
+     * style changes do not trigger ResizeObserver but must refresh the fade.
+     */
     useIsomorphicLayoutEffect(() => {
       if (!gradient || !rootRef.current) return;
 
@@ -129,6 +140,11 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       setDetectedGradientColor(effectiveBackgroundColor);
     }, [containerClassName, containerStyle, gradient]);
 
+    /**
+     * Child identity is intentional in these accessibility effects. Same-size
+     * DOM replacements do not rebuild animation, but still require validation
+     * and clone sanitization after React commits the new descendants.
+     */
     useIsomorphicLayoutEffect(() => {
       if (
         hasWarnedUnsupportedContentRef.current ||
@@ -154,7 +170,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
     const isVertical = dir === "up" || dir === "down";
     const isReverse = dir === "down" || dir === "right";
     const shouldFill = fill;
-    const usesContentTrack = fill || isVertical;
+    const usesContentTrack = fill;
 
     useIsomorphicLayoutEffect(() => {
       const container = rootRef.current;
@@ -174,13 +190,9 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         marqueeElements,
         contentElements,
         isVertical,
-        { children, fill: shouldFill, spacing }
+        { children: null, fill: shouldFill, spacing }
       );
     }, [
-      children,
-      className,
-      containerClassName,
-      containerStyle,
       duplicateCount,
       isVertical,
       shouldFill,
@@ -193,10 +205,6 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       measurementSnapshotRef,
       measurementVersion,
     } = useMarqueeMeasurement({
-      className,
-      containerClassName,
-      containerStyle,
-      contentDependency: children,
       duplicateCount,
       isVertical,
       rootRef,
@@ -259,6 +267,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           shouldReduceMotion ||
           !marqueeRef.current ||
           !rootRef.current ||
+          !pluginsReady ||
           !contextSafe
         ) {
           return;
@@ -283,7 +292,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
          * or other nested values from inside lower-level functions.
          */
         const animationProps = {
-          children,
+          children: null,
           fill: shouldFill,
           maxDuplicates,
           spacing,
@@ -311,7 +320,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         const startPosition = isVertical
           ? contentElements[0].offsetTop
           : contentElements[0].offsetLeft;
-        let scrollObserver: Observer | null = null;
+        let scrollObserver: { kill: () => void } | null = null;
         let scrollResponseTimeline: ReturnType<typeof gsap.timeline> | null =
           null;
         let isPointerInside = false;
@@ -344,22 +353,14 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           return;
         }
 
-        const totalTrackSize = marqueeElements
-          .map((element) =>
-            isVertical ? element.offsetHeight : element.offsetWidth
-          )
-          .reduce((a, b) => a + b, 0);
-
-        if (!hasUsableMeasurement(totalTrackSize)) return;
-
         /**
-         * Horizontal normal mode stretches undersized content across the
-         * viewport. Fill mode and all vertical marquees use auto sizing because
-         * the repeated content defines the track.
+         * Normal mode stretches undersized wrappers across the active viewport
+         * axis. Fill mode uses auto-sized content because its measured repeats
+         * define the track.
          */
         const minSizeValue = usesContentTrack
           ? "auto"
-          : getMinSize(totalTrackSize / 2, containerSize, animationProps);
+          : getMinSize(contentSize, containerSize, animationProps);
 
         gsap.set(marqueeElements, {
           [isVertical ? "minHeight" : "minWidth"]: minSizeValue,
@@ -395,7 +396,8 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           isVertical,
           animationProps,
           containerElement,
-          shouldRemainPaused
+          shouldRemainPaused,
+          pluginsRef.current.draggable ?? undefined
         );
 
         if (!hasUsableMeasurement(timeline.duration())) {
@@ -419,52 +421,54 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         };
 
         if (scrollFollow) {
-          scrollObserver = Observer.create({
-            onChangeY(self) {
-              stopScrollResponse();
+          const Observer = pluginsRef.current.observer;
+          scrollObserver =
+            Observer?.create({
+              onChangeY(self) {
+                stopScrollResponse();
 
-              if (shouldRemainPaused()) {
-                restoreBaseTimeline();
-                return;
-              }
+                if (shouldRemainPaused()) {
+                  restoreBaseTimeline();
+                  return;
+                }
 
-              /**
-               * Preserve the legacy response curve: scrollSpeed is an input
-               * strength whose square sets the temporary timeScale. Wheel
-               * direction may invert motion; completion always restores the
-               * configured direction at timeScale 1.
-               */
-              const baseTimeScale = isReverse ? -1 : 1;
-              const wheelDirection = self.deltaY < 0 ? -1 : 1;
-              const responseTimeScale =
-                baseTimeScale * wheelDirection * scrollSpeed * scrollSpeed;
+                /**
+                 * Preserve the legacy response curve: scrollSpeed is an input
+                 * strength whose square sets the temporary timeScale. Wheel
+                 * direction may invert motion; completion always restores the
+                 * configured direction at timeScale 1.
+                 */
+                const baseTimeScale = isReverse ? -1 : 1;
+                const wheelDirection = self.deltaY < 0 ? -1 : 1;
+                const responseTimeScale =
+                  baseTimeScale * wheelDirection * scrollSpeed * scrollSpeed;
 
-              scrollResponseTimeline = gsap
-                .timeline({
-                  data: "gsap-react-marquee-scroll-response",
-                  defaults: {
-                    ease: "none",
-                  },
-                  onComplete() {
-                    scrollResponseTimeline = null;
-                    restoreBaseTimeline();
-                  },
-                })
-                .to(timeline, {
-                  timeScale: responseTimeScale,
-                  duration: 0.2,
-                  overwrite: true,
-                })
-                .to(
-                  timeline,
-                  {
-                    timeScale: baseTimeScale,
-                    duration: 1,
-                  },
-                  "+=0.3"
-                );
-            },
-          });
+                scrollResponseTimeline = gsap
+                  .timeline({
+                    data: "gsap-react-marquee-scroll-response",
+                    defaults: {
+                      ease: "none",
+                    },
+                    onComplete() {
+                      scrollResponseTimeline = null;
+                      restoreBaseTimeline();
+                    },
+                  })
+                  .to(timeline, {
+                    timeScale: responseTimeScale,
+                    duration: 0.2,
+                    overwrite: true,
+                  })
+                  .to(
+                    timeline,
+                    {
+                      timeScale: baseTimeScale,
+                      duration: 1,
+                    },
+                    "+=0.3"
+                  );
+              },
+            }) ?? null;
         }
 
         const onPointerEnter = contextSafe(() => {
@@ -525,8 +529,7 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
           spacing,
           speed,
           draggable,
-          className,
-          children,
+          pluginsReady,
           measurementVersion,
           shouldReduceMotion,
         ],
@@ -563,10 +566,18 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
         <div
           key={i}
           aria-hidden="true"
-          className={cn("gsap-react-marquee", "gsap-react-marquee-clone")}
+          className={joinClassNames(
+            "gsap-react-marquee",
+            "gsap-react-marquee-clone"
+          )}
           data-gsap-react-marquee-clone=""
         >
-          <div className={cn("gsap-react-marquee-content", className)}>
+          <div
+            className={joinClassNames(
+              "gsap-react-marquee-content",
+              className
+            )}
+          >
             {children}
           </div>
         </div>
@@ -587,18 +598,23 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
             "--gradient-color": gradientColorValue,
           } as CSSProperties
         }
-        className={cn(
+        className={joinClassNames(
           "gsap-react-marquee-container",
-          { "gsap-react-marquee-vertical": isVertical },
+          isVertical && "gsap-react-marquee-vertical",
           containerClassName
         )}
       >
         <div
           ref={marqueeRef}
-          className={cn("gsap-react-marquee")}
+          className="gsap-react-marquee"
           data-gsap-react-marquee-original=""
         >
-          <div className={cn("gsap-react-marquee-content", className)}>
+          <div
+            className={joinClassNames(
+              "gsap-react-marquee-content",
+              className
+            )}
+          >
             {children}
           </div>
         </div>

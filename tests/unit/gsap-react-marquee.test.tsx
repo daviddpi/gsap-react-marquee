@@ -20,11 +20,8 @@ vi.mock("gsap", () => ({
   gsap: { registerPlugin, set },
 }));
 
-vi.mock("gsap/all.js", () => ({
-  Draggable: {},
-  InertiaPlugin: {},
-  Observer: {},
-}));
+vi.mock("gsap/Draggable.js", () => ({ Draggable: {} }));
+vi.mock("gsap/Observer.js", () => ({ Observer: {} }));
 
 import GSAPReactMarquee from "../../src/components/gsap-react-marquee";
 

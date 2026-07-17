@@ -21,6 +21,26 @@ await Promise.all(
   )
 );
 
+const esmSource = readFileSync(
+  resolve(repositoryRoot, packageJson.module),
+  "utf8"
+);
+assert.match(
+  esmSource,
+  /maxDuplicates=.*prevents full fill coverage/,
+  "supported duplicate-limit diagnostics must remain in production output"
+);
+assert.match(
+  esmSource,
+  /presentational children only/,
+  "supported child-content diagnostics must remain in production output"
+);
+assert.doesNotMatch(
+  esmSource,
+  /gsap\/all\.js/,
+  "the package must use direct GSAP plugin modules"
+);
+
 const esmExports = await import("gsap-react-marquee");
 const cjsExports = require("gsap-react-marquee");
 

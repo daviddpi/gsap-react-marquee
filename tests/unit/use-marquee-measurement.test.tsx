@@ -46,10 +46,6 @@ const MeasurementHarness = ({
   const [duplicateCount, updateDuplicateCount] = useState(1);
 
   controls = useMarqueeMeasurement({
-    className: undefined,
-    containerClassName: undefined,
-    containerStyle: undefined,
-    contentDependency: "stable content",
     duplicateCount,
     isVertical,
     rootRef,
@@ -116,6 +112,17 @@ afterEach(() => {
 });
 
 describe("useMarqueeMeasurement", () => {
+  it("keeps one ResizeObserver across equivalent parent rerenders", () => {
+    const { rerender } = render(<MeasurementHarness />);
+    const observer = InstrumentedResizeObserver.instances[0];
+
+    rerender(<MeasurementHarness />);
+
+    expect(InstrumentedResizeObserver.instances).toHaveLength(1);
+    expect(InstrumentedResizeObserver.instances[0]).toBe(observer);
+    expect(controls.measurementVersion).toBe(1);
+  });
+
   it("ignores clone root deliveries and accepts a genuinely external resize", () => {
     const { container } = render(<MeasurementHarness />);
     const root = container.querySelector<HTMLElement>(

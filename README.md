@@ -16,7 +16,7 @@ yarn add gsap-react-marquee gsap @gsap/react
 pnpm add gsap-react-marquee gsap @gsap/react
 ```
 
-`react`, `react-dom`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app.
+`react`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app. Your React application may still use `react-dom`, but this package does not require it directly.
 
 ## Basic Usage
 
@@ -51,17 +51,13 @@ Use `fill` when a short piece of content should repeat enough times to cover the
 ### Vertical Marquee
 
 ```tsx
-<Marquee
-  dir="up"
-  fill
-  speed={80}
-  spacing={12}
-  containerStyle={{ height: 320 }}
->
-  <div>Item 1</div>
-  <div>Item 2</div>
-  <div>Item 3</div>
-</Marquee>
+<div style={{ height: 320 }}>
+  <Marquee dir="up" fill speed={80} spacing={12}>
+    <div>Item 1</div>
+    <div>Item 2</div>
+    <div>Item 3</div>
+  </Marquee>
+</div>
 ```
 
 ### Gradient Overlay
@@ -97,7 +93,7 @@ with either pointer or focus cannot override a controlled `paused={true}`.
 
 ### Draggable
 
-`draggable` lets users drag the marquee track manually. Momentum throwing uses GSAP's `InertiaPlugin`. The package imports the plugin from `gsap/all.js`; if your GSAP setup does not include access to InertiaPlugin, dragging still initializes but momentum behavior may be limited by GSAP availability.
+`draggable` lets users drag the marquee track manually. The package loads `Draggable` only when this prop is enabled. Momentum throwing is enabled when your GSAP setup has already registered `InertiaPlugin`; otherwise direct dragging still works without the inertia throw. This feature detection keeps the package compatible with GSAP 3.12 distributions, which do not all expose `InertiaPlugin` at the same package path.
 
 ```tsx
 <Marquee draggable pauseOnHover>
@@ -201,11 +197,15 @@ Use `containerProps` for root semantics and event handlers:
 
 The component renders one semantic original during SSR, then measures the root container and first content item after client mount. It creates enough inaccessible visual clones for the selected mode and starts a GSAP timeline unless reduced motion is active.
 
-In normal mode (`fill={false}`), the component renders one original item plus one clone. This is suitable when your content is already large enough to create a continuous loop.
+In normal mode (`fill={false}`), the component renders one original item plus
+one clone. Each repeated wrapper automatically spans at least the active
+viewport axis and grows when its natural content is larger. Short vertical
+content therefore re-enters from the far edge instead of the middle; `fill` is
+not required for correct entry geometry.
 
 In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size plus one seamless wrap segment. The calculation includes `spacing` and behaves identically for horizontal and vertical directions. `maxDuplicates` defaults to `100` and has a hard internal ceiling of `250`. When a configured ceiling prevents full coverage, development builds emit one warning and keep the rendered clone count finite.
 
-Clone calculation uses the root container's measured width or height. For predictable vertical fill, provide an explicit root height with `containerStyle`, `containerClassName`, or a constrained parent. Clone-generated size changes are excluded from subsequent viewport measurements.
+Clone calculation uses the root container's measured width or height. The root automatically fills the parent's width in horizontal mode and the parent's width and height in vertical mode. Page layout defines the available viewport; no width or height prop is required on `Marquee`. Clone-generated size changes are excluded from subsequent viewport measurements.
 
 ## Styling
 
@@ -234,7 +234,8 @@ Use `className` to style the repeated content wrapper:
 </Marquee>
 ```
 
-Use `containerClassName` or `containerStyle` for the root viewport:
+Use `containerClassName` or `containerStyle` only when the automatic viewport
+needs an explicit visual or sizing override:
 
 ```tsx
 <Marquee
@@ -247,7 +248,9 @@ Use `containerClassName` or `containerStyle` for the root viewport:
 </Marquee>
 ```
 
-Required root layout styles remain controlled by the component. Width, height, color, background, and other non-critical viewport styles can be supplied through `containerStyle`. For predictable measurement, give horizontal marquees a stable width and vertical marquees a stable height.
+Required root layout styles remain controlled by the component. The root fills
+the available parent viewport automatically. Width, height, color, background,
+and other non-critical styles can still be overridden through `containerStyle`.
 
 ## Runtime Notes
 
@@ -274,11 +277,14 @@ Use `fill={true}` for short content, increase `spacing` only as much as needed, 
 
 ### Vertical marquee does not move correctly
 
-Give the container or one of its parents a real height. Vertical mode measures height, not width.
+Ensure the surrounding page layout exposes usable vertical space. The marquee
+automatically fills that parent space and measures its own root; do not copy the
+parent height onto `Marquee`.
 
 ### The marquee expands the page
 
-Place it in a container with an explicit width or max width. For vertical fill, set an explicit height on the root or its layout chain. Content-sized roots intentionally measure their current size instead of inferring an authored CSS constraint from computed pixel values.
+Constrain the surrounding page region with normal CSS layout. The marquee root
+automatically consumes that region instead of expanding to the cloned track.
 
 ### Dragging has no momentum
 
