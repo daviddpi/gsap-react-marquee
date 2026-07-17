@@ -25,8 +25,9 @@ export type GSAPReactMarqueeProps = {
   containerClassName?: string;
 
   /**
-   * @description Inline styles applied to the root viewport. Width and height
-   * can be used to provide an explicit measurement area.
+   * @description Inline styles applied to the root viewport. The component
+   * fills its parent's active axis by default; width and height can override
+   * that automatic viewport sizing.
    */
   containerStyle?: CSSProperties;
 

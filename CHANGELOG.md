@@ -38,6 +38,8 @@ and this project adheres to
   `prefers-reduced-motion` updates and static single-original rendering.
 - Added native-`inert` and forced fallback accessibility regressions for clone
   focus, forms, IDs, ID references, SSR, hydration, and root attributes.
+- Added parent-rerender, real-resize, optional-plugin cache, pre-load unmount,
+  ESM tree-shaking, CSS injection, and bundle-size regressions.
 
 ### Changed
 
@@ -84,6 +86,26 @@ and this project adheres to
   related GSAP resources; disabling the preference restores normal controlled
   behavior.
 - Layout effects now use an SSR-safe isomorphic boundary.
+- Equivalent parent rerenders no longer rebuild the GSAP timeline or reconnect
+  measurement and interaction listeners; real ResizeObserver measurements still
+  rebuild the timeline once.
+- Observer and Draggable now use cached conditional imports and register only
+  while a requesting component remains mounted. Direct plugin paths work across
+  the verified GSAP 3.12.5 and 3.13.0 package layouts.
+- Default component class composition no longer executes `tailwind-merge`;
+  existing `cn` exports remain compatible.
+- Removed the unused `react-dom` peer dependency while retaining it as a test
+  development dependency.
+- Production minification now preserves supported runtime diagnostics.
+- Draggable feature-detects a consumer-registered InertiaPlugin, preserving
+  direct dragging when momentum support is unavailable.
+- Vertical marquees now fill the available parent height automatically, keeping
+  the component root equal to the visual viewport instead of allowing cloned
+  content to expand it. Explicit `containerStyle` sizing remains an override.
+- Vertical normal mode now animates viewport-sized wrappers while fill mode
+  animates measured content repeats. Wrapper sizing uses the natural content
+  snapshot, so short items enter from the far edge and content taller than the
+  viewport exits fully before reverse entry.
 
 ### Notes
 
@@ -93,12 +115,17 @@ and this project adheres to
   0 baseline; Node.js 22 remains part of the manual `0.4.0` release matrix.
 - Numeric normalization is intentionally silent and does not emit repeated
   runtime warnings.
-- Milestone 2 was delivered in M2A/M2B phases. Vertical fill should use an
-  explicitly constrained root height for predictable coverage.
+- Milestone 2 was delivered in M2A/M2B phases. The surrounding layout still
+  defines available space, but vertical marquee roots now consume that height
+  automatically without a component sizing prop.
 - `0.4.0` supports presentational marquee children. Interactive children,
   stable child IDs, and ID-reference relationships remain unsupported and emit
   one development warning; clone sanitization is defensive, not full
   interactive-child support.
+- Milestone 5 measured the default initial consumer bundle at 86,814 minified
+  bytes and 33,155 gzip bytes, down from a 156,230 / 57,364-byte `gsap/all.js`
+  baseline. The interactive total is 130,352 / 50,035 bytes, down from
+  156,258 / 57,372 bytes. Package smoke tests guard both budgets.
 
 ## [0.3.2]
 

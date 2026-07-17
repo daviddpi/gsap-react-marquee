@@ -1,5 +1,5 @@
 import { gsap } from "gsap";
-import { Observer } from "gsap/all.js";
+import { Observer } from "gsap/Observer.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import GSAPReactMarquee from "../../src/components/gsap-react-marquee";
@@ -7,7 +7,38 @@ import type { GSAPReactMarqueeProps } from "../../src/components/gsap-react-marq
 import "./fixture.css";
 
 type FixtureOptions = Omit<GSAPReactMarqueeProps, "children">;
-type FixtureContentVariant = "accessibility" | "default" | "presentational";
+type FixtureContentVariant =
+  | "accessibility"
+  | "default"
+  | "presentational"
+  | "vertical-example"
+  | "vertical-title";
+
+const fixtureIconSource =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2361dafb'/%3E%3C/svg%3E";
+
+const verticalExampleContent = (
+  <div className="fixture-vertical-example">
+    {["Next.js", "React", "TypeScript", "Tailwind CSS"].map((name) => (
+      <div className="fixture-vertical-example-row" key={name}>
+        <img
+          alt={name}
+          className="fixture-vertical-example-icon"
+          height={64}
+          src={fixtureIconSource}
+          width={64}
+        />
+      </div>
+    ))}
+    <div className="fixture-vertical-example-row">
+      <div className="fixture-vertical-example-gsap">GSAP</div>
+    </div>
+  </div>
+);
+
+const verticalTitleContent = (
+  <div className="fixture-vertical-title">GSAP REACT MARQUEE</div>
+);
 
 const rootElement = document.querySelector<HTMLDivElement>("#root");
 const fixtureElement = document.querySelector<HTMLDivElement>("#fixture");
@@ -27,7 +58,50 @@ const timelineObservations = new WeakMap<
     reverseComplete: number;
   }
 >();
+const timelineIdentities = new WeakMap<gsap.core.Timeline, number>();
+let nextTimelineIdentity = 1;
 let observedBaseTimeline: gsap.core.Timeline | null = null;
+
+const directMarqueeListenerTypes = new Set([
+  "focusin",
+  "focusout",
+  "pointerenter",
+  "pointerleave",
+]);
+const activeMarqueeListeners = new Set<
+  EventListenerOrEventListenerObject
+>();
+const nativeAddEventListener = EventTarget.prototype.addEventListener;
+const nativeRemoveEventListener = EventTarget.prototype.removeEventListener;
+
+const isDirectMarqueeListener = (target: EventTarget, type: string) =>
+  directMarqueeListenerTypes.has(type) &&
+  target instanceof HTMLElement &&
+  target.classList.contains("gsap-react-marquee-container");
+
+EventTarget.prototype.addEventListener = function addEventListener(
+  type: string,
+  listener: EventListenerOrEventListenerObject | null,
+  options?: AddEventListenerOptions | boolean
+) {
+  Reflect.apply(nativeAddEventListener, this, [type, listener, options]);
+
+  if (listener && isDirectMarqueeListener(this, type)) {
+    activeMarqueeListeners.add(listener);
+  }
+};
+
+EventTarget.prototype.removeEventListener = function removeEventListener(
+  type: string,
+  listener: EventListenerOrEventListenerObject | null,
+  options?: EventListenerOptions | boolean
+) {
+  Reflect.apply(nativeRemoveEventListener, this, [type, listener, options]);
+
+  if (listener && isDirectMarqueeListener(this, type)) {
+    activeMarqueeListeners.delete(listener);
+  }
+};
 
 const getBaseTimelines = () =>
   gsap.globalTimeline
@@ -39,6 +113,10 @@ const getBaseTimelines = () =>
 
 const observeTimeline = (timeline: gsap.core.Timeline) => {
   observedBaseTimeline = timeline;
+  if (!timelineIdentities.has(timeline)) {
+    timelineIdentities.set(timeline, nextTimelineIdentity);
+    nextTimelineIdentity += 1;
+  }
   if (timelineObservations.has(timeline)) return;
 
   const previousComplete = timeline.eventCallback("onComplete");
@@ -86,7 +164,9 @@ const initialDirection = searchParams.get("dir");
 const initialContentVariant = searchParams.get("content");
 let contentVariant: FixtureContentVariant =
   initialContentVariant === "accessibility" ||
-  initialContentVariant === "presentational"
+  initialContentVariant === "presentational" ||
+  initialContentVariant === "vertical-example" ||
+  initialContentVariant === "vertical-title"
     ? initialContentVariant
     : "default";
 const initialOptions: FixtureOptions =
@@ -100,6 +180,14 @@ const initialOptions: FixtureOptions =
 let currentOptions: FixtureOptions = initialOptions;
 
 const renderContent = () => {
+  if (contentVariant === "vertical-example") {
+    return verticalExampleContent;
+  }
+
+  if (contentVariant === "vertical-title") {
+    return verticalTitleContent;
+  }
+
   if (contentVariant === "presentational") {
     return <span className="fixture-content">Presentational fixture</span>;
   }
@@ -196,11 +284,13 @@ window.__marqueeFixture = {
     return {
       ...observation,
       active: timeline.isActive(),
+      identity: timelineIdentities.get(timeline) ?? 0,
       paused: timeline.paused(),
       progress: timeline.progress(),
       repeatValue: timeline.repeat(),
       reversed: timeline.reversed(),
       timeScale: timeline.timeScale(),
+      totalTime: timeline.totalTime(),
       totalProgress: timeline.totalProgress(),
     };
   },
@@ -224,6 +314,9 @@ window.__marqueeFixture = {
       observers: Observer.getAll().length,
       taggedAnimations,
     };
+  },
+  marqueeListenerCount() {
+    return activeMarqueeListeners.size;
   },
   unmount() {
     root.unmount();

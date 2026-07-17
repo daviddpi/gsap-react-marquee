@@ -2,6 +2,10 @@ declare module "*.css";
 declare module "*.scss";
 declare module "*.sass";
 
-declare module "gsap/all.js" {
-  export * from "gsap/all";
+declare module "gsap/Draggable.js" {
+  export * from "gsap/Draggable";
+}
+
+declare module "gsap/Observer.js" {
+  export * from "gsap/Observer";
 }

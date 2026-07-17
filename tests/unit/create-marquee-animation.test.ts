@@ -34,8 +34,10 @@ const mocks = vi.hoisted(() => {
       return draggableVars;
     },
     getProperty: vi.fn(
-      (_target: HTMLElement, property: string) =>
-        property === "width" || property === "height" ? 100 : 0
+      (target: HTMLElement, property: string) =>
+        property === "width" || property === "height"
+          ? Number(target.dataset.measureSize ?? 100)
+          : 0
     ),
     killTweensOf: vi.fn(),
     set: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock("gsap", () => ({
     }),
     getProperty: mocks.getProperty,
     killTweensOf: mocks.killTweensOf,
+    plugins: { inertia: {} },
     set: mocks.set,
     utils: {
       wrap:
@@ -64,12 +67,8 @@ vi.mock("gsap", () => ({
   },
 }));
 
-vi.mock("gsap/all.js", () => ({
-  Draggable: mocks.Draggable,
-  InertiaPlugin: {},
-}));
-
 import { createMarqueeAnimation } from "../../src/components/gsap-reactmarquee.utils";
+import type { MarqueeDraggablePlugins } from "../../src/components/marquee-plugins";
 
 type Timeline = Parameters<typeof createMarqueeAnimation>[2];
 
@@ -118,13 +117,14 @@ const createTimeline = () => {
   return { callbacks, timeline };
 };
 
-const createMeasuredElement = () => {
+const createMeasuredElement = (size = 100, offset = 0) => {
   const element = document.createElement("div");
+  element.dataset.measureSize = String(size);
   Object.defineProperties(element, {
-    offsetHeight: { configurable: true, value: 100 },
-    offsetLeft: { configurable: true, value: 0 },
-    offsetTop: { configurable: true, value: 0 },
-    offsetWidth: { configurable: true, value: 100 },
+    offsetHeight: { configurable: true, value: size },
+    offsetLeft: { configurable: true, value: offset },
+    offsetTop: { configurable: true, value: offset },
+    offsetWidth: { configurable: true, value: size },
   });
   return element;
 };
@@ -162,7 +162,10 @@ const createAnimation = ({
       speed: 100,
     },
     undefined,
-    getPaused
+    getPaused,
+    {
+      Draggable: mocks.Draggable,
+    } as unknown as MarqueeDraggablePlugins
   );
 
   return { callbacks, cleanup, timeline };
@@ -270,4 +273,55 @@ describe("createMarqueeAnimation timeline control", () => {
     expect(mocks.killTweensOf).toHaveBeenCalled();
     expect(callbacks.get("onReverseComplete")).toBeNull();
   });
+});
+
+describe("createMarqueeAnimation vertical segment math", () => {
+  for (const isReverse of [false, true]) {
+    for (const itemCount of [1, 2]) {
+      it(`creates finite positive ${isReverse ? "down" : "up"} segments for ${itemCount} item(s) with spacing`, () => {
+        const { timeline } = createTimeline();
+        const items = Array.from({ length: itemCount }, (_, index) =>
+          createMeasuredElement(100, index * 120)
+        );
+
+        createMarqueeAnimation(
+          items,
+          0,
+          timeline as unknown as Timeline,
+          isReverse,
+          items,
+          true,
+          {
+            children: null,
+            loop: -1,
+            spacing: 20,
+            speed: 50,
+          }
+        );
+
+        expect(timeline.to).toHaveBeenCalledTimes(itemCount);
+        expect(timeline.fromTo).toHaveBeenCalledTimes(itemCount);
+
+        const durations = [
+          ...timeline.to.mock.calls.map(([, vars]) => vars.duration),
+          ...timeline.fromTo.mock.calls.map(([, , vars]) => vars.duration),
+        ];
+        const percents = [
+          ...timeline.to.mock.calls.map(([, vars]) => vars.yPercent),
+          ...timeline.fromTo.mock.calls.flatMap(([, fromVars, toVars]) => [
+            fromVars.yPercent,
+            toVars.yPercent,
+          ]),
+        ];
+
+        expect(durations).toHaveLength(itemCount * 2);
+        expect(
+          durations.every(
+            (duration) => Number.isFinite(duration) && duration > 0
+          )
+        ).toBe(true);
+        expect(percents.every(Number.isFinite)).toBe(true);
+      });
+    }
+  }
 });
