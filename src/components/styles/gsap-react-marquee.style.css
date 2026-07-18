@@ -1,9 +1,23 @@
+/* Root viewport and track presentation for GSAPReactMarquee. */
 .gsap-react-marquee-container {
   display: flex;
   overflow: hidden;
   width: 100%;
   white-space: nowrap;
   position: relative;
+}
+
+/*
+ * Horizontal marquees already fill the available inline size through width.
+ * Vertical marquees must also consume the parent's available block size so the
+ * root remains the visual viewport instead of growing with the cloned track.
+ * An explicit inline height supplied through containerStyle still overrides
+ * this default.
+ */
+:where(.gsap-react-marquee-container.gsap-react-marquee-vertical) {
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
 }
 
 /* Gradient overlays for horizontal marquee (left/right) */
@@ -72,6 +86,11 @@
   white-space: nowrap;
   display: flex;
   flex: 1;
+}
+
+.gsap-react-marquee-clone,
+.gsap-react-marquee-clone * {
+  pointer-events: none;
 }
 
 .gsap-react-marquee-content {

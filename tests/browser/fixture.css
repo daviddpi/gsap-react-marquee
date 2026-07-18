@@ -1,0 +1,62 @@
+html,
+body {
+  margin: 0;
+}
+
+#fixture-form {
+  margin: 0;
+}
+
+#fixture {
+  width: 640px;
+  height: 160px;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+.fixture-content {
+  box-sizing: border-box;
+  width: var(--fixture-content-width, 160px);
+  height: var(--fixture-content-height, 40px);
+}
+
+.fixture-vertical-example {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fixture-vertical-example-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.fixture-vertical-example-icon {
+  display: block;
+  width: 64px;
+  height: 64px;
+}
+
+.fixture-vertical-example-gsap {
+  color: #88ce02;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 32px;
+}
+
+.fixture-vertical-title {
+  padding: 32px 0;
+  color: #f5deb3;
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 48px;
+  text-transform: uppercase;
+}

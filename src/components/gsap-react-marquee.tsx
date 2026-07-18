@@ -1,57 +1,111 @@
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
-import { Draggable, InertiaPlugin, Observer } from "gsap/all.js";
 import {
   type CSSProperties,
   type MutableRefObject,
   forwardRef,
   useCallback,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import "./gsap-react-marquee.style.css";
-import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
+import "./styles/gsap-react-marquee.style.css";
+import type { GSAPReactMarqueeProps } from "./types/gsap-react-marquee.type";
 import {
-  calculateDuplicateCount,
-  cn,
-  createMarqueeAnimation,
+  hasUnsupportedMarqueeContent,
+  installMarqueeCloneFocusGuard,
+  sanitizeMarqueeClones,
+  supportsNativeInert,
+} from "./utils/marquee-accessibility";
+import {
+  calculateDuplicateCountResult,
   getEffectiveBackgroundColor,
-  getTargetSize,
-  getMinSize,
   setupContainerStyles,
-} from "./gsap-reactmarquee.utils";
+} from "./utils/marquee-layout";
+import { normalizeMarqueeOptions } from "./utils/marquee-options";
+import { isProductionRuntime } from "./utils/runtime-diagnostics";
+import { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
+import { useMarqueeAnimation } from "./hooks/use-marquee-animation";
+import { useMarqueeMeasurement } from "./hooks/use-marquee-measurement";
+import { useMarqueePlugins } from "./hooks/use-marquee-plugins";
+import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 
-gsap.registerPlugin(useGSAP, Observer, InertiaPlugin, Draggable);
+gsap.registerPlugin(useGSAP);
+
+const joinClassNames = (
+  ...classNames: Array<string | false | null | undefined>
+): string => classNames.filter(Boolean).join(" ");
+
+const warnDuplicateLimit = (
+  maxDuplicates: number,
+  requiredDuplicateCount: number
+) => {
+  if (isProductionRuntime()) return;
+
+  Reflect.apply(console.warn, console, [
+    `GSAPReactMarquee: maxDuplicates=${maxDuplicates} prevents full fill coverage; ${requiredDuplicateCount} duplicates are required.`,
+  ]);
+};
+
+const warnUnsupportedContent = () => {
+  if (isProductionRuntime()) return;
+
+  Reflect.apply(console.warn, console, [
+    "GSAPReactMarquee: 0.4.0 supports presentational children only. Interactive children and stable IDs are unsupported; visual clones are sanitized for safety.",
+  ]);
+};
 
 const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
   (props, ref) => {
     const {
       children,
       className,
+      containerClassName,
+      containerStyle,
+      containerProps,
       dir = "left",
-      loop = -1,
+      loop: loopOption,
       paused = false,
-      delay = 0,
+      respectReducedMotion = true,
+      delay: delayOption,
       fill = false,
+      maxDuplicates: maxDuplicatesOption,
       scrollFollow = false,
-      scrollSpeed = 2.5,
+      scrollSpeed: scrollSpeedOption,
       gradient = false,
       gradientColor = null,
       pauseOnHover = false,
-      spacing = 16,
-      speed = 100,
+      spacing: spacingOption,
+      speed: speedOption,
       draggable = false,
     } = props;
 
+    const { delay, loop, maxDuplicates, scrollSpeed, spacing, speed } =
+      normalizeMarqueeOptions({
+        delay: delayOption,
+        loop: loopOption,
+        maxDuplicates: maxDuplicatesOption,
+        scrollSpeed: scrollSpeedOption,
+        spacing: spacingOption,
+        speed: speedOption,
+      });
+
     const rootRef = useRef<HTMLDivElement | null>(null);
     const marqueeRef = useRef<HTMLDivElement | null>(null);
-    const [duplicateCount, setDuplicateCount] = useState(1);
+    const prefersReducedMotion = usePrefersReducedMotion();
+    const shouldReduceMotion = respectReducedMotion && prefersReducedMotion;
+    const { pluginsReady, pluginsRef } = useMarqueePlugins({
+      draggable: draggable && !shouldReduceMotion,
+      scrollFollow: scrollFollow && !shouldReduceMotion,
+    });
+    const pausedRef = useRef(paused);
+    pausedRef.current = paused;
+    const [duplicateCount, setDuplicateCount] = useState(0);
     const [detectedGradientColor, setDetectedGradientColor] = useState<
       string | null
     >(null);
-    const [measurementVersion, setMeasurementVersion] = useState(0);
+    const hasWarnedDuplicateLimitRef = useRef(false);
+    const hasWarnedUnsupportedContentRef = useRef(false);
 
     const setContainerRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -69,308 +123,223 @@ const GSAPReactMarquee = forwardRef<HTMLDivElement, GSAPReactMarqueeProps>(
       [ref]
     );
 
-    useLayoutEffect(() => {
+    /**
+     * Background-only style changes do not trigger ResizeObserver, so style
+     * identity remains an intentional dependency for gradient detection.
+     */
+    useIsomorphicLayoutEffect(() => {
       if (!gradient || !rootRef.current) return;
 
       const effectiveBackgroundColor = getEffectiveBackgroundColor(
         rootRef.current
       );
       setDetectedGradientColor(effectiveBackgroundColor);
-    }, [gradient]);
-
-    const isVertical = dir === "up" || dir === "down";
-    const isReverse = dir === "down" || dir === "right";
+    }, [containerClassName, containerStyle, gradient]);
 
     /**
-     * Re-measure when layout can change after the first render
-     *
-     * Images and responsive content often report a different size after mount.
-     * ResizeObserver catches container/content changes, while image load/error
-     * events catch late media changes that should restart the GSAP timeline.
+     * Child identity is intentional: same-size replacements skip animation
+     * rebuilds but still need validation and clone sanitization after commit.
      */
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
+      if (
+        hasWarnedUnsupportedContentRef.current ||
+        !marqueeRef.current ||
+        !hasUnsupportedMarqueeContent(marqueeRef.current)
+      ) {
+        return;
+      }
+
+      hasWarnedUnsupportedContentRef.current = true;
+      warnUnsupportedContent();
+    }, [children]);
+
+    useIsomorphicLayoutEffect(() => {
       const container = rootRef.current;
       if (!container) return;
 
-      const firstContentElement = container.querySelector(
-        ".gsap-react-marquee .gsap-react-marquee-content"
-      ) as HTMLElement | null;
+      const nativeInert = supportsNativeInert();
+      sanitizeMarqueeClones(container, nativeInert);
+      return installMarqueeCloneFocusGuard(container, nativeInert);
+    }, [children, duplicateCount, shouldReduceMotion]);
 
-      let animationFrameId: number | null = null;
-      const scheduleMeasurement = () => {
-        if (animationFrameId != null) return;
-        animationFrameId = requestAnimationFrame(() => {
-          setMeasurementVersion((version) => version + 1);
-          animationFrameId = null;
-        });
-      };
+    const isVertical = dir === "up" || dir === "down";
 
-      const resizeObserver =
-        typeof ResizeObserver !== "undefined"
-          ? new ResizeObserver(scheduleMeasurement)
-          : null;
-      if (resizeObserver) {
-        resizeObserver.observe(container);
-        if (firstContentElement) resizeObserver.observe(firstContentElement);
+    useIsomorphicLayoutEffect(() => {
+      const container = rootRef.current;
+      if (!container) return;
+
+      const marqueeElements = Array.from(
+        container.querySelectorAll<HTMLElement>(".gsap-react-marquee")
+      );
+      const contentElements = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          ".gsap-react-marquee .gsap-react-marquee-content"
+        )
+      );
+
+      setupContainerStyles(
+        container,
+        marqueeElements,
+        contentElements,
+        isVertical,
+        { children: null, fill, spacing }
+      );
+    }, [duplicateCount, fill, isVertical, spacing]);
+
+    const {
+      beginCloneApplication,
+      cloneApplicationSnapshotRef,
+      measurementSnapshotRef,
+      measurementVersion,
+    } = useMarqueeMeasurement({
+      duplicateCount,
+      isVertical,
+      rootRef,
+    });
+
+    useIsomorphicLayoutEffect(() => {
+      if (shouldReduceMotion) {
+        setDuplicateCount((currentCount) =>
+          currentCount === 0 ? currentCount : 0
+        );
+        return;
       }
 
-      const pendingImages = Array.from(container.querySelectorAll("img"));
-      const handleImageSettled = () => scheduleMeasurement();
-      pendingImages.forEach((image) => {
-        if (image.complete) return;
-        image.addEventListener("load", handleImageSettled);
-        image.addEventListener("error", handleImageSettled);
-      });
+      const snapshot = measurementSnapshotRef.current;
+      const expectedAxis = isVertical ? "vertical" : "horizontal";
+      if (!snapshot || snapshot.axis !== expectedAxis) return;
 
-      return () => {
-        resizeObserver?.disconnect();
-        pendingImages.forEach((image) => {
-          image.removeEventListener("load", handleImageSettled);
-          image.removeEventListener("error", handleImageSettled);
-        });
-        if (animationFrameId != null) cancelAnimationFrame(animationFrameId);
-      };
-    }, [children, className]);
-
-    useGSAP(
-      (_, contextSafe) => {
-        if (!marqueeRef.current || !rootRef.current || !contextSafe) return;
-
-        const containerElement = rootRef.current;
-
-        /**
-         * Pass only animation-related props to helpers.
-         * This keeps utility calls explicit and avoids reading props.draggable
-         * or other nested values from inside lower-level functions.
-         */
-        const animationProps = {
-          children,
+      const duplicateResult = calculateDuplicateCountResult(
+        snapshot.contentSize,
+        snapshot.viewportSize,
+        {
+          children: null,
           fill,
+          maxDuplicates,
           spacing,
-          speed,
-          delay,
-          paused,
-          draggable,
-        } satisfies GSAPReactMarqueeProps;
-
-        const marqueeElements = gsap.utils.toArray<HTMLElement>(
-          containerElement.querySelectorAll(".gsap-react-marquee")
-        );
-        const contentElements = gsap.utils.toArray<HTMLElement>(
-          containerElement.querySelectorAll(
-            ".gsap-react-marquee .gsap-react-marquee-content"
-          )
-        );
-
-        if (!contentElements.length) return;
-
-        setupContainerStyles(
-          containerElement,
-          marqueeElements,
-          contentElements,
-          isVertical,
-          animationProps
-        );
-
-        const containerSize = isVertical
-          ? containerElement.offsetHeight
-          : containerElement.offsetWidth;
-        const contentSize = isVertical
-          ? contentElements[0].offsetHeight
-          : contentElements[0].offsetWidth;
-        const targetSize = getTargetSize(containerElement, isVertical);
-        const startPosition = isVertical
-          ? contentElements[0].offsetTop
-          : contentElements[0].offsetLeft;
-        let scrollObserver: Observer | null = null;
-
-        const clampedScrollSpeed = Math.min(4, Math.max(1.1, scrollSpeed));
-
-        /**
-         * Duplicate count affects rendered DOM. When the measured count changes,
-         * update state and let React render the correct number of cloned items
-         * before creating the GSAP timeline.
-         */
-        const nextDuplicateCount = calculateDuplicateCount(
-          contentSize,
-          targetSize,
-          animationProps
-        );
-        if (duplicateCount !== nextDuplicateCount) {
-          setDuplicateCount(nextDuplicateCount);
-          return;
         }
+      );
+      const { duplicateCount: nextDuplicateCount } = duplicateResult;
 
-        /**
-         * Timeline owns the continuous marquee movement. Reverse directions start
-         * from the end of the timeline so right/down movement loops correctly.
-         */
-        const timeline = gsap.timeline({
-          paused,
-          repeat: loop,
-          defaults: { ease: "none" },
-          onReverseComplete() {
-            timeline.totalTime(timeline.rawTime() + timeline.duration() * 100);
-          },
-        });
-
-        const totalTrackSize = marqueeElements
-          .map((element) =>
-            isVertical ? element.offsetHeight : element.offsetWidth
-          )
-          .reduce((a, b) => a + b, 0);
-
-        /**
-         * In normal mode there is one original item and one clone, so half the
-         * track represents one logical item. Fill mode uses auto sizing because
-         * the cloned content itself defines the track.
-         */
-        const minSizeValue = getMinSize(
-          fill ? 0 : totalTrackSize / 2,
-          containerSize,
-          animationProps
+      if (
+        duplicateResult.limitReached &&
+        !hasWarnedDuplicateLimitRef.current
+      ) {
+        hasWarnedDuplicateLimitRef.current = true;
+        warnDuplicateLimit(
+          maxDuplicates,
+          duplicateResult.requiredDuplicateCount
         );
-
-        gsap.set(marqueeElements, {
-          [isVertical ? "minHeight" : "minWidth"]: minSizeValue,
-          flex: fill ? "0 0 auto" : "1",
-        });
-
-        const cleanupMarqueeAnimation = createMarqueeAnimation(
-          fill ? contentElements : marqueeElements,
-          startPosition,
-          timeline,
-          isReverse,
-          marqueeElements,
-          isVertical,
-          animationProps
-        );
-
-        if (scrollFollow) {
-          scrollObserver = Observer.create({
-            onChangeY(self) {
-              /**
-               * Wheel movement temporarily changes timeline speed and direction.
-               * The first tween gives an immediate response; the second eases
-               * back to a steadier speed so scrolling does not feel abrupt.
-               */
-              let factor = clampedScrollSpeed * (isReverse ? -1 : 1);
-              if (self.deltaY < 0) {
-                factor *= -1;
-              }
-
-              gsap
-                .timeline({
-                  defaults: {
-                    ease: "none",
-                  },
-                })
-                .to(timeline, {
-                  timeScale: factor * clampedScrollSpeed,
-                  duration: 0.2,
-                  overwrite: true,
-                })
-                .to(
-                  timeline,
-                  {
-                    timeScale: factor / clampedScrollSpeed,
-                    duration: 1,
-                  },
-                  "+=0.3"
-                );
-            },
-          });
-        }
-
-        const onMouseEnter = contextSafe(() => {
-          timeline.pause();
-        });
-        const onMouseLeave = contextSafe(() => {
-          if (isReverse) {
-            timeline.reverse();
-          } else {
-            timeline.play();
-          }
-        });
-
-        if (pauseOnHover) {
-          containerElement.addEventListener("mouseenter", onMouseEnter);
-          containerElement.addEventListener("mouseleave", onMouseLeave);
-        }
-
-        return () => {
-          containerElement.removeEventListener("mouseenter", onMouseEnter);
-          containerElement.removeEventListener("mouseleave", onMouseLeave);
-          gsap.killTweensOf(timeline);
-          timeline.kill();
-          scrollObserver?.kill();
-          cleanupMarqueeAnimation?.();
-        };
-      },
-      {
-        dependencies: [
-          duplicateCount,
-          dir,
-          loop,
-          paused,
-          delay,
-          fill,
-          scrollFollow,
-          scrollSpeed,
-          pauseOnHover,
-          spacing,
-          speed,
-          draggable,
-          className,
-          children,
-          measurementVersion,
-        ],
-        revertOnUpdate: true,
       }
-    );
 
-    /**
-     * Gradient color priority:
-     * 1. Explicit gradientColor prop.
-     * 2. Auto-detected nearest background color.
-     * 3. Transparent fallback when gradients are disabled or undetected.
-     */
+      if (duplicateCount === nextDuplicateCount) return;
+      if (!beginCloneApplication(snapshot)) return;
+
+      setDuplicateCount(nextDuplicateCount);
+    }, [
+      beginCloneApplication,
+      duplicateCount,
+      fill,
+      isVertical,
+      maxDuplicates,
+      measurementSnapshotRef,
+      measurementVersion,
+      shouldReduceMotion,
+      spacing,
+    ]);
+
+    useMarqueeAnimation({
+      cloneApplicationSnapshotRef,
+      delay,
+      dir,
+      draggable,
+      duplicateCount,
+      fill,
+      loop,
+      marqueeRef,
+      maxDuplicates,
+      measurementSnapshotRef,
+      measurementVersion,
+      paused,
+      pausedRef,
+      pauseOnHover,
+      pluginsReady,
+      pluginsRef,
+      rootRef,
+      scrollFollow,
+      scrollSpeed,
+      shouldReduceMotion,
+      spacing,
+      speed,
+    });
+
     const gradientColorValue =
       gradientColor ??
       (gradient ? detectedGradientColor : null) ??
       "transparent";
 
-    /**
-     * Render cloned marquee items after measurement.
-     * The original item is always rendered above; duplicateCount controls only
-     * the additional copies needed for the current container/content size.
-     */
     const clonedItems = useMemo(() => {
-      if (!Number.isFinite(duplicateCount) || duplicateCount <= 0) return null;
+      if (
+        shouldReduceMotion ||
+        !Number.isFinite(duplicateCount) ||
+        duplicateCount <= 0
+      ) {
+        return null;
+      }
 
-      return Array.from({ length: duplicateCount }, (_, i) => (
-        <div key={i} className={cn("gsap-react-marquee")}>
-          <div className={cn("gsap-react-marquee-content", className)}>
+      return Array.from({ length: duplicateCount }, (_, index) => (
+        <div
+          key={index}
+          aria-hidden="true"
+          className={joinClassNames(
+            "gsap-react-marquee",
+            "gsap-react-marquee-clone"
+          )}
+          data-gsap-react-marquee-clone=""
+        >
+          <div
+            className={joinClassNames(
+              "gsap-react-marquee-content",
+              className
+            )}
+          >
             {children}
           </div>
         </div>
       ));
-    }, [duplicateCount, className, children]);
+    }, [duplicateCount, className, children, shouldReduceMotion]);
 
     return (
       <div
+        {...containerProps}
         ref={setContainerRef}
         style={
           {
+            ...containerStyle,
+            display: "flex",
+            overflow: "hidden",
+            position: "relative",
+            whiteSpace: "nowrap",
             "--gradient-color": gradientColorValue,
           } as CSSProperties
         }
-        className={cn("gsap-react-marquee-container", {
-          "gsap-react-marquee-vertical": isVertical,
-        })}
+        className={joinClassNames(
+          "gsap-react-marquee-container",
+          isVertical && "gsap-react-marquee-vertical",
+          containerClassName
+        )}
       >
-        <div ref={marqueeRef} className={cn("gsap-react-marquee")}>
-          <div className={cn("gsap-react-marquee-content", className)}>
+        <div
+          ref={marqueeRef}
+          className="gsap-react-marquee"
+          data-gsap-react-marquee-original=""
+        >
+          <div
+            className={joinClassNames(
+              "gsap-react-marquee-content",
+              className
+            )}
+          >
             {children}
           </div>
         </div>

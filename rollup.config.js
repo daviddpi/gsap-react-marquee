@@ -4,7 +4,7 @@ import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import { readFileSync } from "fs";
 import dts from "rollup-plugin-dts";
-import postcss from "rollup-plugin-postcss";
+import { cssInject } from "./scripts/rollup-plugin-css-inject.js";
 
 const packageJson = JSON.parse(readFileSync("./package.json", "utf8"));
 
@@ -38,17 +38,11 @@ export default [
         declarationMap: false,
         removeComments: true,
       }),
-      postcss({
-        minimize: true,
-        inject: true,
-        sourceMap: false,
-        extract: false,
-      }),
+      cssInject(),
       terser({
         compress: {
-          drop_console: true,
           drop_debugger: true,
-          pure_funcs: ["console.log", "console.warn", "console.error"],
+          pure_funcs: ["console.log"],
           passes: 2,
         },
         mangle: true,
@@ -59,11 +53,11 @@ export default [
     ],
     external: [
       "react",
-      "react-dom",
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
       "gsap",
-      "gsap/all.js",
+      "gsap/Draggable.js",
+      "gsap/Observer.js",
       "@gsap/react",
       "clsx",
       "tailwind-merge",
@@ -85,7 +79,8 @@ export default [
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
       "gsap",
-      "gsap/all.js",
+      "gsap/Draggable.js",
+      "gsap/Observer.js",
       "@gsap/react",
       "clsx",
       "tailwind-merge",

@@ -1,6 +1,6 @@
 # GSAP React Marquee
 
-`gsap-react-marquee` is a React marquee component powered by GSAP. It supports horizontal and vertical scrolling, seamless looping, optional fill mode, pause-on-hover, scroll-follow speed changes, draggable interaction, gradient overlays, and TypeScript types.
+`gsap-react-marquee` is a React marquee component powered by GSAP. It supports horizontal and vertical scrolling, seamless looping, optional fill mode, pause-on-hover, scroll-follow speed changes, draggable interaction, reduced-motion preferences, accessible visual clones, gradient overlays, and TypeScript types.
 
 ## Installation
 
@@ -16,7 +16,18 @@ yarn add gsap-react-marquee gsap @gsap/react
 pnpm add gsap-react-marquee gsap @gsap/react
 ```
 
-`react`, `react-dom`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app.
+`react`, `gsap`, and `@gsap/react` are peer dependencies and must be installed by the consuming app. Your React application may still use `react-dom`, but this package does not require it directly.
+
+### Compatibility
+
+| Environment | Supported versions | Release verification |
+| --- | --- | --- |
+| React | 18 and 19 | Packed ESM, CommonJS, types, SSR, CSS, and Chromium fixtures |
+| GSAP | 3.12 and 3.13 | Packed fixtures use 3.12.5 and 3.13.0 |
+| `@gsap/react` | 2.1 or newer | Packed fixtures use 2.1.2 |
+| Node.js | 20 and 22 | Typecheck, lint, unit, build, package, and audit release matrix |
+
+Node.js versions older than 20 are not part of the `0.4.0` support contract.
 
 ## Basic Usage
 
@@ -48,15 +59,28 @@ Use `fill` when a short piece of content should repeat enough times to cover the
 </Marquee>
 ```
 
+`fill` is independent from `dir`. It uses the same coverage calculation for
+left, right, up, and down movement. Without `fill`, every direction renders one
+semantic original and one visual clone.
+
 ### Vertical Marquee
 
 ```tsx
-<Marquee dir="up" speed={80} spacing={12}>
+<Marquee
+  dir="up"
+  fill
+  speed={80}
+  spacing={12}
+  containerStyle={{ height: 320 }}
+>
   <div>Item 1</div>
   <div>Item 2</div>
   <div>Item 3</div>
 </Marquee>
 ```
+
+Use `containerStyle` or `containerClassName` when the surrounding layout does
+not already provide a constrained height.
 
 ### Gradient Overlay
 
@@ -76,6 +100,49 @@ When `gradient` is enabled, the component detects the nearest non-transparent ba
 </Marquee>
 ```
 
+`pauseOnHover` also pauses while keyboard focus is inside the marquee. Leaving
+with either pointer or focus cannot override a controlled `paused={true}`.
+
+### Controlled Pause
+
+`paused` is controlled React state, not only an initial setting. Changing it to
+`true` pauses the current direction; changing it to `false` resumes that
+direction at the base speed. Hover/focus leave, drag release, scroll response,
+reverse delay, and late plugin loading cannot resume `paused={true}`. Draggable
+still initializes while controlled-paused so it becomes usable when resumed.
+
+Applications showing motion for more than five seconds should expose a visible
+pause control when their accessibility requirements call for one. The component
+provides controlled state; the consumer owns control placement and labeling:
+
+```tsx
+import { useState } from "react";
+import Marquee from "gsap-react-marquee";
+
+export function ControlledMarquee() {
+  const [isPaused, setIsPaused] = useState(false);
+
+  return (
+    <section aria-label="Partner announcements">
+      <button
+        type="button"
+        aria-pressed={isPaused}
+        onClick={() => setIsPaused((current) => !current)}
+      >
+        {isPaused ? "Play marquee" : "Pause marquee"}
+      </button>
+      <Marquee paused={isPaused} draggable>
+        <span>Controlled animation</span>
+      </Marquee>
+    </section>
+  );
+}
+```
+
+`respectReducedMotion` handles user motion preference. It does not remove the
+consumer's responsibility to provide pause/stop controls required by content,
+duration, and applicable WCAG policy.
+
 ### Scroll-Follow
 
 `scrollFollow` changes the marquee timeline speed and direction based on vertical wheel movement.
@@ -88,7 +155,7 @@ When `gradient` is enabled, the component detects the nearest non-transparent ba
 
 ### Draggable
 
-`draggable` lets users drag the marquee track manually. Momentum throwing uses GSAP's `InertiaPlugin`. The package imports the plugin from `gsap/all.js`; if your GSAP setup does not include access to InertiaPlugin, dragging still initializes but momentum behavior may be limited by GSAP availability.
+`draggable` lets users drag the marquee track manually. The package loads `Draggable` only when this prop is enabled. Momentum throwing is enabled when your GSAP setup has already registered `InertiaPlugin`; otherwise direct dragging still works without the inertia throw. This feature detection keeps the package compatible with GSAP 3.12 distributions, which do not all expose `InertiaPlugin` at the same package path.
 
 ```tsx
 <Marquee draggable pauseOnHover>
@@ -117,18 +184,69 @@ export function Example() {
 }
 ```
 
+### Reduced Motion
+
+The component respects `prefers-reduced-motion: reduce` by default. It renders
+one static original and creates no GSAP timeline, Observer, or Draggable
+instance. Preference changes are applied without reloading the page.
+
+Use `respectReducedMotion={false}` only when motion remains appropriate for the
+content and audience:
+
+```tsx
+<Marquee respectReducedMotion={false}>
+  <span>Animation remains enabled</span>
+</Marquee>
+```
+
+### Accessibility and Child Content
+
+Version `0.4.0` supports presentational children such as text, images, and logo
+groups. Interactive controls, links, stable IDs, and ID-reference relationships
+inside repeated children are not supported. A future major version may add an
+explicit render-item API for interactive content.
+
+SSR output contains only the semantic original. After client measurement,
+visual clones receive `aria-hidden="true"`, native `inert` where available, and
+disabled pointer interaction. The Safari 14.1 fallback removes clone tab stops,
+form names, IDs, and ID-reference attributes and prevents programmatic focus
+from remaining inside a clone. Development builds warn once when unsupported
+child content is detected.
+
+Clone sanitization means ID-based CSS, fragment links, and SVG references inside
+repeated children may not survive. Keep those relationships outside marquee
+children.
+
+Use `containerProps` for root semantics and event handlers:
+
+```tsx
+<Marquee
+  containerProps={{
+    "aria-label": "Technology partners",
+    role: "region",
+  }}
+>
+  <span>Presentational partner logos</span>
+</Marquee>
+```
+
 ## Props
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `children` | `ReactNode` | Required | Content rendered inside each marquee item. |
 | `className` | `string` | `undefined` | Class applied to each `.gsap-react-marquee-content` element. |
+| `containerClassName` | `string` | `undefined` | Class applied only to the root viewport. |
+| `containerStyle` | `CSSProperties` | `undefined` | Inline styles applied to the root viewport. |
+| `containerProps` | root `div` attributes | `undefined` | ARIA, `data-*`, and event props applied to the root viewport. |
 | `dir` | `"left" \| "right" \| "up" \| "down"` | `"left"` | Direction of movement. |
 | `loop` | `number` | `-1` | Number of timeline repeats. `-1` means infinite. |
-| `paused` | `boolean` | `false` | Starts the timeline paused. |
+| `paused` | `boolean` | `false` | Controls whether the current timeline is paused. |
+| `respectReducedMotion` | `boolean` | `true` | Shows one static original when reduced motion is requested. |
 | `delay` | `number` | `0` | Delay in seconds before the timeline starts. |
 | `speed` | `number` | `100` | Animation speed in pixels per second. |
 | `fill` | `boolean` | `false` | Repeats content enough times to cover the measured marquee area. |
+| `maxDuplicates` | `number` | `100` | Maximum additional clones in fill mode, capped internally at `250`. |
 | `pauseOnHover` | `boolean` | `false` | Pauses on pointer hover and resumes on leave. |
 | `gradient` | `boolean` | `false` | Enables edge gradient overlays. |
 | `gradientColor` | `string` | `undefined` | Explicit gradient color. Overrides automatic background detection. |
@@ -137,15 +255,33 @@ export function Example() {
 | `scrollFollow` | `boolean` | `false` | Adjusts timeline speed from wheel/scroll direction. |
 | `scrollSpeed` | `number` | `2.5` | Scroll-follow multiplier. Clamped between `1.1` and `4`. |
 
+### Numeric Normalization
+
+Numeric props are normalized before layout or GSAP receives them. Invalid
+values never create negative, `NaN`, or infinite durations.
+
+| Prop | Accepted values | Invalid-value behavior |
+| --- | --- | --- |
+| `speed` | finite number greater than `0` | Uses `100` |
+| `spacing` | finite number at least `0` | Uses `16` |
+| `delay` | finite number at least `0` | Uses `0` |
+| `loop` | `-1` or integer at least `0` | Uses `-1` |
+| `scrollSpeed` | finite number | Clamped to `1.1`–`4`; non-finite uses `2.5` |
+| `maxDuplicates` | positive integer | Uses `100`, then caps at hard ceiling `250` |
+
 ## How Sizing Works
 
-The component measures the root container and first content item after mount. It then creates enough cloned marquee items for the selected mode and starts a GSAP timeline.
+The component renders one semantic original during SSR, then measures the root container and first content item after client mount. It creates enough inaccessible visual clones for the selected mode and starts a GSAP timeline unless reduced motion is active.
 
-In normal mode (`fill={false}`), the component renders one original item plus one clone. This is suitable when your content is already large enough to create a continuous loop.
+In normal mode (`fill={false}`), the component renders one original item plus
+one clone. Each repeated wrapper automatically spans at least the active
+viewport axis and grows when its natural content is larger. Short vertical
+content therefore re-enters from the far edge instead of the middle; `fill` is
+not required for correct entry geometry.
 
-In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size. The duplicate count is capped to prevent excessive DOM growth, and the component re-measures when the container, the first content item, child content, or unloaded images change size.
+In fill mode (`fill={true}`), the component calculates how many clones are required to cover the measured target size plus one seamless wrap segment. The calculation includes `spacing` and behaves identically for horizontal and vertical directions. `maxDuplicates` defaults to `100` and has a hard internal ceiling of `250`. When a configured ceiling prevents full coverage, development builds emit one warning and keep the rendered clone count finite.
 
-If the container has no reliable defined size, the component falls back to the viewport width or height as its measurement target. This avoids recursive expansion when the marquee is placed inside content-sized layouts.
+Clone calculation uses the root container's measured width or height. The root automatically fills the parent's width in horizontal mode and the parent's width and height in vertical mode. Page layout defines the available viewport; no width or height prop is required on `Marquee`. Clone-generated size changes are excluded from subsequent viewport measurements.
 
 ## Styling
 
@@ -174,14 +310,66 @@ Use `className` to style the repeated content wrapper:
 </Marquee>
 ```
 
-For predictable measurement, give the marquee or its parent a stable width for horizontal marquees and a stable height for vertical marquees.
+Use `containerClassName` or `containerStyle` only when the automatic viewport
+needs an explicit visual or sizing override:
+
+```tsx
+<Marquee
+  dir="up"
+  fill
+  containerClassName="vertical-marquee"
+  containerStyle={{ height: 320, backgroundColor: "#111827" }}
+>
+  <span>Measured vertical content</span>
+</Marquee>
+```
+
+Required root layout styles remain controlled by the component. The root fills
+the available parent viewport automatically. Width, height, color, background,
+and other non-critical styles can still be overridden through `containerStyle`.
+
+## Public Utilities
+
+Version `0.4.0` keeps the historical utility exports as supported public API.
+Aliases below are identical function references, not wrappers.
+
+| Utility | Contract |
+| --- | --- |
+| `normalizeMarqueeOptions` | Returns finite normalized numeric options using documented fallbacks and caps. |
+| `hasUsableMeasurement` | Returns `true` only when every supplied number is finite and greater than zero. |
+| `hasDefinedWidth` | Checks whether `offsetWidth` is finite and positive; it no longer infers CSS width semantics. |
+| `getTargetSize` / `getTargetWidth` | Returns root `offsetHeight` or `offsetWidth`; no viewport fallback is used. |
+| `calculateDuplicateCountResult` | Returns bounded clone count, required count, and limit state. Fill includes spacing and one wrap segment. |
+| `calculateDuplicateCount` / `calculateDuplicates` | Returns only the bounded additional-clone count from the same calculation. |
+| `getMinSize` / `getMinWidth` | Returns active-axis wrapper minimum size for normal or fill layout. |
+| `setupContainerStyles` | Applies direction, spacing, flex sizing, and overflow to root, track, and content elements. |
+| `resumeTimeline` | Restores forward/reverse playback or controlled pause from explicit options. |
+| `createMarqueeAnimation` / `coreAnimation` | Builds segments and optional drag behavior, honoring loop, reverse, pause, and cleanup contracts. |
+| `getEffectiveBackgroundColor` | Returns the first non-transparent computed ancestor background, or `transparent`. |
+| `cn` | Combines `clsx` inputs and resolves Tailwind class conflicts. |
+
+These `0.4.0` behavior changes are intentional. Future removal or narrowing of
+historical helpers requires deprecation before a major release.
 
 ## Runtime Notes
 
-- The component uses `useLayoutEffect`, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements, so it is intended for client-side rendering.
+- SSR safely renders one static original. Client measurement adds visual clones after hydration.
+- The animated lifecycle uses an isomorphic layout effect, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements.
 - In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
 - Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
-- Changing animation props such as `dir`, `speed`, `delay`, `fill`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+- Observer and Draggable load independently. A failed optional chunk disables only that feature; the base marquee still starts. Toggling the feature off and on requests a retry.
+- Changing animation props such as `dir`, `speed`, `delay`, `fill`, `maxDuplicates`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
+- ESM and CommonJS bundles contain the same minified runtime and inject one minified base-style element in browsers. Importing either entrypoint during SSR does not access `document`.
+- Published JavaScript and CSS are minified, while supported development diagnostics remain intact. Source maps are intentionally not published for `0.4.0`; repository TypeScript remains the review/debug source.
+
+## Browser Support
+
+Supported targets are current and previous-major Chromium and Firefox releases,
+plus Safari and iOS Safari 14.1 or newer. Native `inert` is feature-detected.
+Safari versions without it use the clone-specific focus, form, and pointer
+fallback described above. Playwright Chromium, Firefox, and WebKit are the automated
+compatibility signals; WebKit does not exactly emulate every older Safari
+release.
 
 ## Troubleshooting
 
@@ -191,11 +379,14 @@ Use `fill={true}` for short content, increase `spacing` only as much as needed, 
 
 ### Vertical marquee does not move correctly
 
-Give the container or one of its parents a real height. Vertical mode measures height, not width.
+Ensure the surrounding page layout exposes usable vertical space. The marquee
+automatically fills that parent space and measures its own root; do not copy the
+parent height onto `Marquee`.
 
 ### The marquee expands the page
 
-Place it in a container with an explicit width or max width. In fill mode, the component falls back to viewport measurement when it detects content-sized containers, but explicit layout constraints are still more predictable.
+Constrain the surrounding page region with normal CSS layout. The marquee root
+automatically consumes that region instead of expanding to the cloned track.
 
 ### Dragging has no momentum
 
@@ -203,28 +394,39 @@ Momentum depends on GSAP `InertiaPlugin` availability. If the plugin is not avai
 
 ## Development
 
-Install dependencies:
+Use Node.js 20 or 22 and the pinned pnpm version from `packageManager`.
+
+Install the exact lockfile:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
-Run a TypeScript check:
+Run TypeScript, lint, and unit checks:
 
 ```bash
-pnpm exec tsc --noEmit
+pnpm run check
 ```
 
-Build the package:
+Run browser compatibility checks:
 
 ```bash
-pnpm run build
+pnpm run test:browser
+pnpm run test:browser:firefox
+pnpm run test:browser:webkit
 ```
 
-Preview the published package contents:
+Build and test the real packed artifact against React 18 and 19 consumers:
 
 ```bash
-npm pack --dry-run
+pnpm run test:package
+```
+
+Run the full dependency audit or complete local release gate:
+
+```bash
+pnpm run audit
+pnpm run release:check
 ```
 
 ## License
