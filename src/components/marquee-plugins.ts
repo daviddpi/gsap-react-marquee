@@ -8,24 +8,31 @@ export type MarqueeDraggablePlugins = {
   Draggable: typeof Draggable;
 };
 
-let observerPluginPromise: Promise<ObserverPlugin> | null = null;
-let draggablePluginPromise: Promise<MarqueeDraggablePlugins> | null = null;
 let registeredObserverPlugin: ObserverPlugin | null = null;
 let registeredDraggablePlugins: MarqueeDraggablePlugins | null = null;
 
-export const loadObserverPlugin = (): Promise<ObserverPlugin> => {
-  observerPluginPromise ??= import("gsap/Observer.js").then(
-    ({ Observer }) => Observer
-  );
-  return observerPluginPromise;
+export const createRetryablePluginLoader = <Plugin>(
+  importPlugin: () => Promise<Plugin>
+) => {
+  let pluginPromise: Promise<Plugin> | null = null;
+
+  return (): Promise<Plugin> => {
+    pluginPromise ??= importPlugin().catch((error: unknown) => {
+      pluginPromise = null;
+      throw error;
+    });
+
+    return pluginPromise;
+  };
 };
 
-export const loadDraggablePlugins = (): Promise<MarqueeDraggablePlugins> => {
-  draggablePluginPromise ??= import("gsap/Draggable.js").then(
-    ({ Draggable }) => ({ Draggable })
-  );
-  return draggablePluginPromise;
-};
+export const loadObserverPlugin = createRetryablePluginLoader(
+  () => import("gsap/Observer.js").then(({ Observer }) => Observer)
+);
+
+export const loadDraggablePlugins = createRetryablePluginLoader(
+  () => import("gsap/Draggable.js").then(({ Draggable }) => ({ Draggable }))
+);
 
 export const registerObserverPlugin = (Observer: ObserverPlugin): void => {
   if (registeredObserverPlugin === Observer) return;

@@ -187,6 +187,7 @@ Milestone branches, merged sequentially into `release/0.4.0`:
 | M5 React performance and bundle | `fix/m5-react-perf-bundle` |
 | M5.1 Vertical wrap and clone entry | `fix/m5.1-vertical-wrap-entry` |
 | M6 Security, docs, and release | `fix/m6-security-docs-release` |
+| M6.1 Residual release hardening | `fix/m6.1-release-hardening` |
 
 Required flow:
 

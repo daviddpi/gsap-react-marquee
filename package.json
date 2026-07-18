@@ -27,19 +27,21 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rollup -c",
-    "build:watch": "rollup -c -w",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "pnpm run clean && rollup -c && node scripts/clean-dist.mjs --declarations-only",
+    "build:watch": "pnpm run clean && rollup -c -w",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:browser": "playwright test --project=chromium",
+    "test:browser:firefox": "playwright test --project=firefox",
     "test:browser:webkit": "playwright test --project=webkit",
     "test:package": "pnpm run build && node tests/package/run-smoke.mjs && node tests/package/packed-smoke.mjs && node tests/package/bundle-smoke.mjs",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "audit": "pnpm audit --audit-level=moderate",
-    "release:check": "pnpm run check && pnpm run test:browser && pnpm run test:browser:webkit && pnpm run test:package && pnpm run audit && git diff --check",
+    "release:check": "pnpm run check && pnpm run test:browser && pnpm run test:browser:firefox && pnpm run test:browser:webkit && pnpm run test:package && pnpm run audit && git diff --check",
     "prepare": "npm run build"
   },
   "keywords": [

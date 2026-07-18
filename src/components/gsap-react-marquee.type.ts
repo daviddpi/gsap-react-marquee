@@ -58,7 +58,9 @@ export type GSAPReactMarqueeProps = {
   loop?: number;
 
   /**
-   * @description Whether the marquee animation should start paused.
+   * @description Controls whether the current marquee animation is paused.
+   * Changes remain authoritative across hover, focus, drag, scroll, and
+   * optional-plugin loading interactions.
    * @type {boolean}
    * @default false
    */

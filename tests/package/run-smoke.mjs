@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import React from "react";
@@ -21,6 +21,12 @@ await Promise.all(
   )
 );
 
+assert.deepEqual(
+  (await readdir(resolve(repositoryRoot, "dist"))).sort(),
+  ["index.cjs", "index.d.ts", "index.esm.js"],
+  "clean build must produce only the three intended dist artifacts"
+);
+
 const esmSource = readFileSync(
   resolve(repositoryRoot, packageJson.module),
   "utf8"
@@ -34,6 +40,11 @@ assert.match(
   esmSource,
   /presentational children only/,
   "supported child-content diagnostics must remain in production output"
+);
+assert.match(
+  esmSource,
+  /typeof process&&"production"===process\.env\.NODE_ENV/,
+  "published ESM must guard process.env with typeof process"
 );
 assert.doesNotMatch(
   esmSource,
@@ -72,6 +83,45 @@ assert.deepEqual(
   Object.keys(esmExports).sort(),
   Object.keys(cjsExports).sort(),
   "ESM and CommonJS entrypoints must expose the same public names"
+);
+assert.deepEqual(Object.keys(esmExports).sort(), [
+  "calculateDuplicateCount",
+  "calculateDuplicateCountResult",
+  "calculateDuplicates",
+  "cn",
+  "coreAnimation",
+  "createMarqueeAnimation",
+  "default",
+  "getEffectiveBackgroundColor",
+  "getMinSize",
+  "getMinWidth",
+  "getTargetSize",
+  "getTargetWidth",
+  "hasDefinedWidth",
+  "hasUsableMeasurement",
+  "normalizeMarqueeOptions",
+  "resumeTimeline",
+  "setupContainerStyles",
+]);
+assert.equal(
+  esmExports.calculateDuplicates,
+  esmExports.calculateDuplicateCount,
+  "calculateDuplicates must remain an identity alias"
+);
+assert.equal(
+  esmExports.getTargetWidth,
+  esmExports.getTargetSize,
+  "getTargetWidth must remain an identity alias"
+);
+assert.equal(
+  esmExports.getMinWidth,
+  esmExports.getMinSize,
+  "getMinWidth must remain an identity alias"
+);
+assert.equal(
+  esmExports.coreAnimation,
+  esmExports.createMarqueeAnimation,
+  "coreAnimation must remain an identity alias"
 );
 assert.equal(typeof esmExports.default, "object");
 assert.equal(typeof esmExports.calculateDuplicateCount, "function");

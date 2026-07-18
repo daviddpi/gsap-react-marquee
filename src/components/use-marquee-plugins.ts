@@ -7,6 +7,7 @@ import {
   registerDraggablePlugins,
   registerObserverPlugin,
 } from "./marquee-plugins";
+import { isProductionRuntime } from "./runtime-diagnostics";
 
 type UseMarqueePluginsOptions = {
   draggable: boolean;
@@ -18,16 +19,28 @@ type LoadedMarqueePlugins = {
   observer: ObserverPlugin | null;
 };
 
-let hasWarnedPluginLoadFailure = false;
+export type PluginStatus = "idle" | "loading" | "ready" | "failed";
 
-const warnPluginLoadFailure = () => {
-  if (process.env.NODE_ENV === "production" || hasWarnedPluginLoadFailure) {
+type MarqueePluginStatuses = {
+  draggable: PluginStatus;
+  observer: PluginStatus;
+};
+
+type MarqueePluginName = keyof MarqueePluginStatuses;
+
+const warnedPluginLoadFailures = new Set<MarqueePluginName>();
+
+const warnPluginLoadFailure = (pluginName: MarqueePluginName) => {
+  if (
+    isProductionRuntime() ||
+    warnedPluginLoadFailures.has(pluginName)
+  ) {
     return;
   }
 
-  hasWarnedPluginLoadFailure = true;
+  warnedPluginLoadFailures.add(pluginName);
   Reflect.apply(console.warn, console, [
-    "GSAPReactMarquee: optional GSAP plugins failed to load; the requested interactive feature was not initialized.",
+    `GSAPReactMarquee: optional GSAP ${pluginName} plugin failed to load; that interactive feature was not initialized.`,
   ]);
 };
 
@@ -39,41 +52,69 @@ export const useMarqueePlugins = ({
     draggable: null,
     observer: null,
   });
-  const [, publishPlugins] = useState(0);
+  const [pluginStatuses, setPluginStatuses] = useState<MarqueePluginStatuses>({
+    draggable: "idle",
+    observer: "idle",
+  });
+  const pluginStatusesRef = useRef(pluginStatuses);
 
   useEffect(() => {
     let isMounted = true;
-    const pendingPlugins: Array<Promise<void>> = [];
+
+    const publishPluginStatus = (
+      pluginName: MarqueePluginName,
+      status: PluginStatus
+    ) => {
+      if (!isMounted) return;
+      const nextStatuses = {
+        ...pluginStatusesRef.current,
+        [pluginName]: status,
+      };
+      pluginStatusesRef.current = nextStatuses;
+      setPluginStatuses(nextStatuses);
+    };
+
+    const resetInactivePlugin = (pluginName: MarqueePluginName) => {
+      const status = pluginStatusesRef.current[pluginName];
+      if (status === "loading" || status === "failed") {
+        publishPluginStatus(pluginName, "idle");
+      }
+    };
 
     if (scrollFollow && !pluginsRef.current.observer) {
-      pendingPlugins.push(
-        loadObserverPlugin().then((Observer) => {
+      publishPluginStatus("observer", "loading");
+      void loadObserverPlugin()
+        .then((Observer) => {
           if (!isMounted) return;
           registerObserverPlugin(Observer);
           pluginsRef.current.observer = Observer;
+          publishPluginStatus("observer", "ready");
         })
-      );
+        .catch(() => {
+          if (!isMounted) return;
+          publishPluginStatus("observer", "failed");
+          warnPluginLoadFailure("observer");
+        });
+    } else if (!scrollFollow) {
+      resetInactivePlugin("observer");
     }
 
     if (draggable && !pluginsRef.current.draggable) {
-      pendingPlugins.push(
-        loadDraggablePlugins().then((plugins) => {
+      publishPluginStatus("draggable", "loading");
+      void loadDraggablePlugins()
+        .then((plugins) => {
           if (!isMounted) return;
           registerDraggablePlugins(plugins);
           pluginsRef.current.draggable = plugins;
+          publishPluginStatus("draggable", "ready");
         })
-      );
-    }
-
-    if (pendingPlugins.length > 0) {
-      Promise.all(pendingPlugins).then(
-        () => {
-          if (isMounted) publishPlugins((version) => version + 1);
-        },
-        () => {
-          if (isMounted) warnPluginLoadFailure();
-        }
-      );
+        .catch(() => {
+          if (!isMounted) return;
+          publishPluginStatus("draggable", "failed");
+          warnPluginLoadFailure("draggable");
+        });
+    } else if (!draggable) {
+      resetInactivePlugin("draggable");
     }
 
     return () => {
@@ -82,8 +123,12 @@ export const useMarqueePlugins = ({
   }, [draggable, scrollFollow]);
 
   const pluginsReady =
-    (!draggable || pluginsRef.current.draggable !== null) &&
-    (!scrollFollow || pluginsRef.current.observer !== null);
+    (!draggable ||
+      pluginsRef.current.draggable !== null ||
+      pluginStatuses.draggable === "failed") &&
+    (!scrollFollow ||
+      pluginsRef.current.observer !== null ||
+      pluginStatuses.observer === "failed");
 
-  return { pluginsReady, pluginsRef };
+  return { pluginStatuses, pluginsReady, pluginsRef };
 };

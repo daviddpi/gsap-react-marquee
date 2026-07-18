@@ -34,6 +34,7 @@ const measureLoopGaps = async (
     }
 
     const endTime = performance.now() + cycleDuration * 2_000;
+    const minimumFrames = 8;
     let frames = 0;
     let maxGap = 0;
 
@@ -62,7 +63,7 @@ const measureLoopGaps = async (
       }
       maxGap = Math.max(maxGap, rootEnd - coveredUntil);
       frames += 1;
-    } while (performance.now() < endTime);
+    } while (performance.now() < endTime || frames < minimumFrames);
 
     return { cycleDuration, frames, maxGap };
   }, { vertical: isVertical });
@@ -279,13 +280,16 @@ test("normalizes invalid numeric props before creating GSAP animations", async (
     });
   });
 
-  await expect
-    .poll(() => page.evaluate(() => window.__marqueeFixture.timelineCount()))
-    .toBeGreaterThan(0);
-
-  const durations = await page.evaluate(() =>
-    window.__marqueeFixture.timelineDurations()
-  );
+  const durations = await page.evaluate(async () => {
+    for (let frame = 0; frame < 60; frame += 1) {
+      const nextDurations = window.__marqueeFixture.timelineDurations();
+      if (nextDurations.length > 0) return nextDurations;
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+    }
+    return [];
+  });
   expect(durations.length).toBeGreaterThan(0);
   expect(durations.every((duration) => Number.isFinite(duration))).toBe(true);
   expect(durations.every((duration) => duration >= 0)).toBe(true);

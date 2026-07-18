@@ -263,7 +263,7 @@ const prepareFixture = async (fixture, tarballPath) => {
           jsdom: "29.1.1",
           react: fixture.react,
           "react-dom": fixture.react,
-          typescript: "5.9.2",
+          typescript: fixture.name === "react18" ? "5.5.2" : "5.9.2",
           vite: "8.1.5",
         },
       },

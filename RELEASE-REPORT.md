@@ -1,14 +1,29 @@
 # 0.4.0 Release Report
 
-Date: 2026-07-17
+Date: 2026-07-18
 
 ## Outcome
 
-Implemented milestones: M0-M5.1, M6
+Implemented milestones: M0-M5.1, M6, M6.1
 
 Suggested release: `0.4.0`
 
 No public export was removed and no explicitly breaking API change was added.
+
+## M6.1 Hardening Addendum
+
+- Browser diagnostics no longer require a bare Node `process` global.
+- Observer and Draggable failures settle independently; failed optional
+  features no longer prevent the base timeline and can retry after reactivation.
+- Historical utility exports now have exact ESM/CommonJS contracts and
+  documented `0.4.0` semantics.
+- Build output is cleaned deterministically and contains only the three intended
+  `dist` artifacts before npm allowlisting.
+- Firefox is now part of `release:check`; the 65-test suite passes.
+- React 18 packed consumers compile with TypeScript 5.5.2, while React 19 uses
+  TypeScript 5.9.2.
+- The M6.1 delta is verified locally on Node 20. A repeat on Node 22 remains a
+  manual final-release matrix step.
 
 ## Behavior Fixed
 
@@ -54,7 +69,7 @@ No public export was removed and no explicitly breaking API change was added.
 
 - Unit: normalization, measurement, clone safety, reduced motion, optional
   plugins, timeline control, and vertical segment coverage.
-- Browser: `65` Chromium and `65` WebKit cases covering layout, resize, loops,
+- Browser: `65` Chromium, `65` Firefox, and `65` WebKit cases covering layout, resize, loops,
   drag, scroll, accessibility, reduced motion, StrictMode, and M5.1 wrap stress.
 - Packaging: real tarball installs under React 18.3.1/GSAP 3.12.5 and React
   19.2.7/GSAP 3.13.0; ESM, CommonJS, types, SSR, CSS, published files, and
@@ -66,14 +81,15 @@ No public export was removed and no explicitly breaking API change was added.
 | Environment or command | Result |
 | --- | --- |
 | `pnpm@10.34.5 install --frozen-lockfile` on Node 20.19.4 | Pass |
-| Node 20 typecheck, lint, `69` unit tests, build | Pass |
+| Node 20 typecheck, lint, `76` unit tests, build | Pass |
 | Node 22.15.1 typecheck, lint, `69` unit tests, build | Pass |
 | `pnpm run test:browser` (`65` Chromium tests) | Pass |
+| `pnpm run test:browser:firefox` (`65` Firefox tests) | Pass |
 | `pnpm run test:browser:webkit` (`65` WebKit tests) | Pass |
 | Packed React 18/19 consumer matrix | Pass |
 | ESM, CommonJS, declarations, SSR, CSS injection | Pass |
-| Default bundle: 86,726 minified / 33,102 gzip bytes | Pass |
-| Interactive bundle: 130,264 minified / 49,982 gzip bytes | Pass |
+| Default bundle: 87,210 minified / 33,272 gzip bytes | Pass |
+| Interactive bundle: 130,748 minified / 50,152 gzip bytes | Pass |
 | `npm pack --dry-run` (6 files, 17.6 kB archive) | Pass |
 | Full dependency audit at moderate threshold | Pass, 0 advisories |
 | `git diff --check` | Pass |
@@ -81,8 +97,7 @@ No public export was removed and no explicitly breaking API change was added.
 ## Residual Risks
 
 - WebKit plus a forced no-`inert` path is a strong compatibility signal, not an
-  exact Safari 14.1 device test. Firefox support also lacks an automated final
-  matrix run.
+  exact Safari 14.1 device test.
 - `0.4.0` supports presentational children only. Interactive children, stable
   IDs, and child ID-reference relationships remain unsupported.
 - Momentum dragging depends on a consumer-registered `InertiaPlugin`; direct
