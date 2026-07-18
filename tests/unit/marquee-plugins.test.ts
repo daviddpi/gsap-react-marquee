@@ -13,6 +13,7 @@ vi.mock("gsap/Draggable.js", () => ({ Draggable: mocks.Draggable }));
 vi.mock("gsap/Observer.js", () => ({ Observer: mocks.Observer }));
 
 import {
+  createRetryablePluginLoader,
   loadDraggablePlugins,
   loadObserverPlugin,
   registerDraggablePlugins,
@@ -20,6 +21,21 @@ import {
 } from "../../src/components/marquee-plugins";
 
 describe("optional marquee plugin loader", () => {
+  it("clears a rejected cached promise so a later call can retry", async () => {
+    const importPlugin = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("chunk failed"))
+      .mockResolvedValue("loaded");
+    const loadPlugin = createRetryablePluginLoader(importPlugin);
+
+    const firstPromise = loadPlugin();
+    expect(loadPlugin()).toBe(firstPromise);
+    await expect(firstPromise).rejects.toThrow("chunk failed");
+
+    await expect(loadPlugin()).resolves.toBe("loaded");
+    expect(importPlugin).toHaveBeenCalledTimes(2);
+  });
+
   it("caches import promises and registers each plugin group once", async () => {
     const firstObserverPromise = loadObserverPlugin();
     const secondObserverPromise = loadObserverPlugin();

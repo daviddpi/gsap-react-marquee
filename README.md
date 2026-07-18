@@ -111,11 +111,37 @@ direction at the base speed. Hover/focus leave, drag release, scroll response,
 reverse delay, and late plugin loading cannot resume `paused={true}`. Draggable
 still initializes while controlled-paused so it becomes usable when resumed.
 
+Applications showing motion for more than five seconds should expose a visible
+pause control when their accessibility requirements call for one. The component
+provides controlled state; the consumer owns control placement and labeling:
+
 ```tsx
-<Marquee paused={isPaused} draggable>
-  <span>Controlled animation</span>
-</Marquee>
+import { useState } from "react";
+import Marquee from "gsap-react-marquee";
+
+export function ControlledMarquee() {
+  const [isPaused, setIsPaused] = useState(false);
+
+  return (
+    <section aria-label="Partner announcements">
+      <button
+        type="button"
+        aria-pressed={isPaused}
+        onClick={() => setIsPaused((current) => !current)}
+      >
+        {isPaused ? "Play marquee" : "Pause marquee"}
+      </button>
+      <Marquee paused={isPaused} draggable>
+        <span>Controlled animation</span>
+      </Marquee>
+    </section>
+  );
+}
 ```
+
+`respectReducedMotion` handles user motion preference. It does not remove the
+consumer's responsibility to provide pause/stop controls required by content,
+duration, and applicable WCAG policy.
 
 ### Scroll-Follow
 
@@ -215,7 +241,7 @@ Use `containerProps` for root semantics and event handlers:
 | `containerProps` | root `div` attributes | `undefined` | ARIA, `data-*`, and event props applied to the root viewport. |
 | `dir` | `"left" \| "right" \| "up" \| "down"` | `"left"` | Direction of movement. |
 | `loop` | `number` | `-1` | Number of timeline repeats. `-1` means infinite. |
-| `paused` | `boolean` | `false` | Starts the timeline paused. |
+| `paused` | `boolean` | `false` | Controls whether the current timeline is paused. |
 | `respectReducedMotion` | `boolean` | `true` | Shows one static original when reduced motion is requested. |
 | `delay` | `number` | `0` | Delay in seconds before the timeline starts. |
 | `speed` | `number` | `100` | Animation speed in pixels per second. |
@@ -302,12 +328,36 @@ Required root layout styles remain controlled by the component. The root fills
 the available parent viewport automatically. Width, height, color, background,
 and other non-critical styles can still be overridden through `containerStyle`.
 
+## Public Utilities
+
+Version `0.4.0` keeps the historical utility exports as supported public API.
+Aliases below are identical function references, not wrappers.
+
+| Utility | Contract |
+| --- | --- |
+| `normalizeMarqueeOptions` | Returns finite normalized numeric options using documented fallbacks and caps. |
+| `hasUsableMeasurement` | Returns `true` only when every supplied number is finite and greater than zero. |
+| `hasDefinedWidth` | Checks whether `offsetWidth` is finite and positive; it no longer infers CSS width semantics. |
+| `getTargetSize` / `getTargetWidth` | Returns root `offsetHeight` or `offsetWidth`; no viewport fallback is used. |
+| `calculateDuplicateCountResult` | Returns bounded clone count, required count, and limit state. Fill includes spacing and one wrap segment. |
+| `calculateDuplicateCount` / `calculateDuplicates` | Returns only the bounded additional-clone count from the same calculation. |
+| `getMinSize` / `getMinWidth` | Returns active-axis wrapper minimum size for normal or fill layout. |
+| `setupContainerStyles` | Applies direction, spacing, flex sizing, and overflow to root, track, and content elements. |
+| `resumeTimeline` | Restores forward/reverse playback or controlled pause from explicit options. |
+| `createMarqueeAnimation` / `coreAnimation` | Builds segments and optional drag behavior, honoring loop, reverse, pause, and cleanup contracts. |
+| `getEffectiveBackgroundColor` | Returns the first non-transparent computed ancestor background, or `transparent`. |
+| `cn` | Combines `clsx` inputs and resolves Tailwind class conflicts. |
+
+These `0.4.0` behavior changes are intentional. Future removal or narrowing of
+historical helpers requires deprecation before a major release.
+
 ## Runtime Notes
 
 - SSR safely renders one static original. Client measurement adds visual clones after hydration.
 - The animated lifecycle uses an isomorphic layout effect, `ResizeObserver`, `requestAnimationFrame`, and DOM measurements.
 - In SSR frameworks such as Next.js, render it from a client component. Add `"use client"` to the file that imports and renders the marquee.
 - Images that are not complete at mount are watched and trigger a re-measure after `load` or `error`.
+- Observer and Draggable load independently. A failed optional chunk disables only that feature; the base marquee still starts. Toggling the feature off and on requests a retry.
 - Changing animation props such as `dir`, `speed`, `delay`, `fill`, `maxDuplicates`, `draggable`, `spacing`, `loop`, or `paused` re-initializes the GSAP timeline.
 - ESM and CommonJS bundles contain the same minified runtime and inject one minified base-style element in browsers. Importing either entrypoint during SSR does not access `document`.
 - Published JavaScript and CSS are minified, while supported development diagnostics remain intact. Source maps are intentionally not published for `0.4.0`; repository TypeScript remains the review/debug source.
@@ -317,7 +367,7 @@ and other non-critical styles can still be overridden through `containerStyle`.
 Supported targets are current and previous-major Chromium and Firefox releases,
 plus Safari and iOS Safari 14.1 or newer. Native `inert` is feature-detected.
 Safari versions without it use the clone-specific focus, form, and pointer
-fallback described above. Playwright Chromium and WebKit are the automated
+fallback described above. Playwright Chromium, Firefox, and WebKit are the automated
 compatibility signals; WebKit does not exactly emulate every older Safari
 release.
 
@@ -362,6 +412,7 @@ Run browser compatibility checks:
 
 ```bash
 pnpm run test:browser
+pnpm run test:browser:firefox
 pnpm run test:browser:webkit
 ```
 

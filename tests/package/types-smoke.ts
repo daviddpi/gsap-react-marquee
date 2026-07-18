@@ -1,9 +1,19 @@
 import GSAPReactMarquee, {
   calculateDuplicateCount,
+  calculateDuplicateCountResult,
+  calculateDuplicates,
+  coreAnimation,
+  createMarqueeAnimation,
+  getMinSize,
+  getMinWidth,
+  getTargetSize,
+  getTargetWidth,
   hasUsableMeasurement,
   normalizeMarqueeOptions,
+  type DuplicateCountResult,
   type GSAPReactMarqueeProps,
   type NormalizedMarqueeOptions,
+  type ResumeTimelineOptions,
 } from "gsap-react-marquee";
 
 const props: GSAPReactMarqueeProps = {
@@ -34,12 +44,27 @@ const props: GSAPReactMarqueeProps = {
 };
 
 const duplicateCount: number = calculateDuplicateCount(100, 500, props);
+const duplicateResult: DuplicateCountResult = calculateDuplicateCountResult(
+  100,
+  500,
+  props
+);
 const normalizedOptions: NormalizedMarqueeOptions = normalizeMarqueeOptions({
   speed: 100,
 });
+const resumeOptions: ResumeTimelineOptions | undefined = undefined;
 const usableMeasurement: boolean = hasUsableMeasurement(100, 500);
+const utilityAliases: boolean[] = [
+  calculateDuplicates === calculateDuplicateCount,
+  coreAnimation === createMarqueeAnimation,
+  getMinWidth === getMinSize,
+  getTargetWidth === getTargetSize,
+];
 
 void GSAPReactMarquee;
 void duplicateCount;
+void duplicateResult;
 void normalizedOptions;
+void resumeOptions;
 void usableMeasurement;
+void utilityAliases;

@@ -61,6 +61,18 @@ const measureVirtualBundle = async (
     : chunks.filter((item) => item.isEntry);
 
   assert.match(entryCode, expectedMarker);
+  for (const match of entryCode.matchAll(/NODE_ENV/g)) {
+    const environmentAccessIndex = match.index ?? 0;
+    const guardWindow = entryCode.slice(
+      Math.max(0, environmentAccessIndex - 200),
+      environmentAccessIndex
+    );
+    assert.match(
+      guardWindow,
+      /typeof [A-Za-z_$][\w$]*/,
+      "pure Rollup browser output must guard each NODE_ENV access"
+    );
+  }
   await build.close();
 
   return {

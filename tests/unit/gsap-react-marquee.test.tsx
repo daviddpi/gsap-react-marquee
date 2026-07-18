@@ -180,4 +180,23 @@ describe("GSAPReactMarquee rendering baseline", () => {
     expect(warning.mock.calls[0]?.[0]).toContain("presentational children only");
     warning.mockRestore();
   });
+
+  it("keeps diagnostics safe when the browser has no process global", () => {
+    vi.stubGlobal("process", undefined);
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+
+    expect(() =>
+      render(
+        <GSAPReactMarquee>
+          <button type="button">Bare browser warning</button>
+        </GSAPReactMarquee>
+      )
+    ).not.toThrow();
+    expect(warning).toHaveBeenCalledOnce();
+
+    warning.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

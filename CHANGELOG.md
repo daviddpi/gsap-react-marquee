@@ -8,6 +8,32 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Made development diagnostics browser-safe when consumers do not provide a
+  Node-style `process` global.
+- Optional Observer and Draggable failures now settle independently, preserve
+  the base timeline, clear rejected loader caches, and retry after the feature
+  is disabled and re-enabled.
+- Missing-Inertia diagnostics now emit once instead of on every draggable
+  timeline rebuild.
+- Builds now remove stale output and declaration intermediates before exposing
+  the exact three intended `dist` artifacts.
+
+### Compatibility
+
+- Added Firefox to the Playwright release gate, TypeScript `5.5.2` consumer
+  coverage, pure-Rollup checks for unprotected `process.env`, and exact ESM/CJS
+  utility export contracts.
+- Stabilized loop-gap sampling across browser frame rates by requiring both two
+  complete cycles and the existing minimum frame count.
+
+### Documentation
+
+- Documented controlled `paused` behavior, an accessible play/pause pattern,
+  public utility contracts, intentional `0.4.0` semantic changes, and optional
+  plugin degradation behavior.
+
 ## [0.4.0] - 2026-07-17
 
 ### Fixes

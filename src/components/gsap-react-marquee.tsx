@@ -32,6 +32,7 @@ import { useMarqueeMeasurement } from "./use-marquee-measurement";
 import { useMarqueePlugins } from "./use-marquee-plugins";
 import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
+import { isProductionRuntime } from "./runtime-diagnostics";
 
 gsap.registerPlugin(useGSAP);
 
@@ -43,7 +44,7 @@ const warnDuplicateLimit = (
   maxDuplicates: number,
   requiredDuplicateCount: number
 ) => {
-  if (process.env.NODE_ENV === "production") return;
+  if (isProductionRuntime()) return;
 
   Reflect.apply(console.warn, console, [
     `GSAPReactMarquee: maxDuplicates=${maxDuplicates} prevents full fill coverage; ${requiredDuplicateCount} duplicates are required.`,
@@ -51,7 +52,7 @@ const warnDuplicateLimit = (
 };
 
 const warnUnsupportedContent = () => {
-  if (process.env.NODE_ENV === "production") return;
+  if (isProductionRuntime()) return;
 
   Reflect.apply(console.warn, console, [
     "GSAPReactMarquee: 0.4.0 supports presentational children only. Interactive children and stable IDs are unsupported; visual clones are sanitized for safety.",

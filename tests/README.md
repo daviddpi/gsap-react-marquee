@@ -18,11 +18,15 @@ fallback independently from the native path.
 
 - `pnpm run check`: TypeScript, ESLint, and Vitest unit/rendering tests.
 - `pnpm run test:browser`: Chromium layout and animation baseline.
+- `pnpm run test:browser:firefox`: Firefox compatibility baseline.
 - `pnpm run test:browser:webkit`: WebKit compatibility baseline.
 - `pnpm run test:package`: build plus repository export checks, consumer bundle
   budgets, and a real packed-tarball install under React 18/GSAP 3.12 and React
   19/GSAP 3.13. Packed fixtures verify ESM, CommonJS, types, SSR, CSS injection,
   file allowlisting, and Chromium animation.
+  React 18 uses TypeScript 5.5.2; React 19 uses the current TypeScript fixture.
+  Consumer bundles use pure Rollup without environment replacement and reject
+  unprotected browser `process.env` access.
 
 Browser assertions use stable DOM state, dimensions, and GSAP durations. They do
 not use frame-perfect animation screenshots.
@@ -35,6 +39,7 @@ GitHub Actions is intentionally not used. Before merging any milestone, run:
 pnpm install --frozen-lockfile
 pnpm run check
 pnpm run test:browser
+pnpm run test:browser:firefox
 pnpm run test:browser:webkit
 pnpm run test:package
 ```

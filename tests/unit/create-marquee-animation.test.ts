@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => {
           : 0
     ),
     killTweensOf: vi.fn(),
+    plugins: { inertia: {} as object | undefined },
     set: vi.fn(),
   };
 });
@@ -53,7 +54,7 @@ vi.mock("gsap", () => ({
     }),
     getProperty: mocks.getProperty,
     killTweensOf: mocks.killTweensOf,
-    plugins: { inertia: {} },
+    plugins: mocks.plugins,
     set: mocks.set,
     utils: {
       wrap:
@@ -178,6 +179,7 @@ beforeEach(() => {
   mocks.draggableInstance.tween.kill.mockClear();
   mocks.getProperty.mockClear();
   mocks.killTweensOf.mockClear();
+  mocks.plugins.inertia = {};
   mocks.set.mockClear();
 });
 
@@ -215,6 +217,19 @@ describe("createMarqueeAnimation timeline control", () => {
     createAnimation({ loop: -1, paused: true });
 
     expect(mocks.create).toHaveBeenCalledOnce();
+  });
+
+  it("warns only once when repeated Draggable builds lack InertiaPlugin", () => {
+    mocks.plugins.inertia = undefined;
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+
+    createAnimation({ loop: -1 });
+    createAnimation({ loop: -1 });
+
+    expect(warning).toHaveBeenCalledOnce();
+    warning.mockRestore();
   });
 
   it("uses onRelease when inertia does not start", () => {

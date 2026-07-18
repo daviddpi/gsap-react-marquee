@@ -4,6 +4,8 @@ import { twMerge } from "tailwind-merge";
 import type { GSAPReactMarqueeProps } from "./gsap-react-marquee.type";
 import type { MarqueeDraggablePlugins } from "./marquee-plugins";
 
+let hasWarnedMissingInertiaPlugin = false;
+
 const DEFAULT_DELAY = 0;
 const DEFAULT_LOOP = -1;
 const DEFAULT_MAX_DUPLICATES = 100;
@@ -650,7 +652,8 @@ export const createMarqueeAnimation = (
     };
 
     const hasInertiaPlugin = Boolean(gsap.plugins.inertia);
-    if (!hasInertiaPlugin) {
+    if (!hasInertiaPlugin && !hasWarnedMissingInertiaPlugin) {
+      hasWarnedMissingInertiaPlugin = true;
       console.warn(
         "InertiaPlugin required for momentum-based scrolling and snapping. https://greensock.com/club"
       );
