@@ -2,6 +2,7 @@ import type { Draggable } from "gsap/Draggable";
 import type { Observer } from "gsap/Observer";
 import { gsap } from "gsap";
 
+/** Observer plugin constructor loaded on demand. */
 export type ObserverPlugin = typeof Observer;
 
 export type MarqueeDraggablePlugins = {

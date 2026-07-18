@@ -4,6 +4,7 @@ import type {
   ReactNode,
 } from "react";
 
+/** Custom `data-*` attributes accepted by the root viewport. */
 type DataAttributes = {
   [attribute: `data-${string}`]: boolean | number | string | undefined;
 };

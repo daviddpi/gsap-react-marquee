@@ -68,8 +68,8 @@ vi.mock("gsap", () => ({
   },
 }));
 
-import { createMarqueeAnimation } from "../../src/components/gsap-reactmarquee.utils";
-import type { MarqueeDraggablePlugins } from "../../src/components/marquee-plugins";
+import { createMarqueeAnimation } from "../../src/components/utils/gsap-reactmarquee.utils";
+import type { MarqueeDraggablePlugins } from "../../src/components/utils/marquee-plugins";
 
 type Timeline = Parameters<typeof createMarqueeAnimation>[2];
 

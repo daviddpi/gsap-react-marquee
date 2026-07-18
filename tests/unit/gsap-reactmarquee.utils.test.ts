@@ -7,7 +7,7 @@ import {
   hasUsableMeasurement,
   normalizeMarqueeOptions,
   resumeTimeline,
-} from "../../src/components/gsap-reactmarquee.utils";
+} from "../../src/components/utils/gsap-reactmarquee.utils";
 
 type ControlledTimeline = Parameters<typeof resumeTimeline>[0]["timeline"];
 

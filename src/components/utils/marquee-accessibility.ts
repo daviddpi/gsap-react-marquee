@@ -1,5 +1,6 @@
 const CLONE_ATTRIBUTE = "data-gsap-react-marquee-clone";
 
+/** Selector shared by clone sanitization and focus guards. */
 export const MARQUEE_CLONE_SELECTOR = `[${CLONE_ATTRIBUTE}]`;
 
 const FOCUSABLE_SELECTOR = [

@@ -6,8 +6,8 @@ import {
   type ObserverPlugin,
   registerDraggablePlugins,
   registerObserverPlugin,
-} from "./marquee-plugins";
-import { isProductionRuntime } from "./runtime-diagnostics";
+} from "../utils/marquee-plugins";
+import { isProductionRuntime } from "../utils/runtime-diagnostics";
 
 type UseMarqueePluginsOptions = {
   draggable: boolean;

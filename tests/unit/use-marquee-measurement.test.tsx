@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isSameMeasuredSize,
   useMarqueeMeasurement,
-} from "../../src/components/use-marquee-measurement";
+} from "../../src/components/hooks/use-marquee-measurement";
 
 type MeasurementControls = ReturnType<typeof useMarqueeMeasurement>;
 

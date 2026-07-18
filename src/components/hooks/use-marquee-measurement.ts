@@ -7,7 +7,7 @@ import {
 import {
   getTargetSize,
   hasUsableMeasurement,
-} from "./gsap-reactmarquee.utils";
+} from "../utils/marquee-layout";
 import { useIsomorphicLayoutEffect } from "./use-isomorphic-layout-effect";
 
 export const MEASUREMENT_PIXEL_TOLERANCE = 0.5;

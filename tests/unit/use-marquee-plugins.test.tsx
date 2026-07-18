@@ -26,14 +26,14 @@ const mocks = vi.hoisted(() => ({
   registerObserverPlugin: vi.fn(),
 }));
 
-vi.mock("../../src/components/marquee-plugins", () => ({
+vi.mock("../../src/components/utils/marquee-plugins", () => ({
   loadDraggablePlugins: mocks.loadDraggablePlugins,
   loadObserverPlugin: mocks.loadObserverPlugin,
   registerDraggablePlugins: mocks.registerDraggablePlugins,
   registerObserverPlugin: mocks.registerObserverPlugin,
 }));
 
-import { useMarqueePlugins } from "../../src/components/use-marquee-plugins";
+import { useMarqueePlugins } from "../../src/components/hooks/use-marquee-plugins";
 
 beforeEach(() => {
   vi.clearAllMocks();

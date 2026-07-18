@@ -1,4 +1,4 @@
-import type { GSAPReactMarqueeProps } from "../../src/components/gsap-react-marquee.type";
+import type { GSAPReactMarqueeProps } from "../../src/components/types/gsap-react-marquee.type";
 
 declare global {
   interface Window {

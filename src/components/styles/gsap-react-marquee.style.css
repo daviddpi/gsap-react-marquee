@@ -1,3 +1,4 @@
+/* Root viewport and track presentation for GSAPReactMarquee. */
 .gsap-react-marquee-container {
   display: flex;
   overflow: hidden;

@@ -18,7 +18,7 @@ import {
   loadObserverPlugin,
   registerDraggablePlugins,
   registerObserverPlugin,
-} from "../../src/components/marquee-plugins";
+} from "../../src/components/utils/marquee-plugins";
 
 describe("optional marquee plugin loader", () => {
   it("clears a rejected cached promise so a later call can retry", async () => {

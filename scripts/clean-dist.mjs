@@ -14,4 +14,9 @@ if (dirname(targetDirectory) !== expectedParent) {
   throw new Error(`Refusing to clean unexpected directory: ${targetDirectory}`);
 }
 
-await rm(targetDirectory, { force: true, recursive: true });
+await rm(targetDirectory, {
+  force: true,
+  maxRetries: 5,
+  recursive: true,
+  retryDelay: 100,
+});

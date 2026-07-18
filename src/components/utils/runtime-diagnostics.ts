@@ -3,7 +3,7 @@ declare const process:
   | undefined;
 
 /**
- * Detect production without assuming a Node-style `process` global exists.
+ * Detects production without assuming a Node-style `process` global exists.
  * Bare-browser ESM consumers intentionally keep development diagnostics.
  */
 export const isProductionRuntime = (): boolean =>
