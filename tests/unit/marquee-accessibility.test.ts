@@ -3,7 +3,7 @@ import {
   hasUnsupportedMarqueeContent,
   installMarqueeCloneFocusGuard,
   sanitizeMarqueeClones,
-} from "../../src/components/marquee-accessibility";
+} from "../../src/components/utils/marquee-accessibility";
 
 describe("marquee clone accessibility", () => {
   it("sanitizes clone semantics without changing the original", () => {

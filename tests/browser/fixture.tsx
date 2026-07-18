@@ -3,7 +3,7 @@ import { Observer } from "gsap/Observer.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import GSAPReactMarquee from "../../src/components/gsap-react-marquee";
-import type { GSAPReactMarqueeProps } from "../../src/components/gsap-react-marquee.type";
+import type { GSAPReactMarqueeProps } from "../../src/components/types/gsap-react-marquee.type";
 import "./fixture.css";
 
 type FixtureOptions = Omit<GSAPReactMarqueeProps, "children">;

@@ -11,6 +11,7 @@ const readReducedMotionPreference = (): boolean => {
   return window.matchMedia(REDUCED_MOTION_QUERY).matches;
 };
 
+/** Tracks the user's reduced-motion media preference. */
 export const usePrefersReducedMotion = (): boolean => {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     readReducedMotionPreference

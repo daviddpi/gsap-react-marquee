@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isProductionRuntime } from "../../src/components/runtime-diagnostics";
+import { isProductionRuntime } from "../../src/components/utils/runtime-diagnostics";
 
 afterEach(() => {
   vi.unstubAllGlobals();

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   REDUCED_MOTION_QUERY,
   usePrefersReducedMotion,
-} from "../../src/components/use-prefers-reduced-motion";
+} from "../../src/components/hooks/use-prefers-reduced-motion";
 
 const ReducedMotionProbe = () => {
   const prefersReducedMotion = usePrefersReducedMotion();
